@@ -1,7 +1,7 @@
 // Configuración de la aplicación BiciNay
 const CONFIG = {
     // Credenciales de Mapbox
-    MAPBOX_ACCESS_TOKEN: '',
+    MAPBOX_ACCESS_TOKEN: 'pk.eyJ1IjoiZ3VpZ281NjciLCJhIjoiY21ibGF1bXdsMHluMTJrb2Z1NmptNWhlZyJ9.h1FAW0nyayHEZA6u8OJErg',
     
     // Configuración de la aplicación
     APP_TITLE: 'BiciNay - Todo para moverte en bici',
