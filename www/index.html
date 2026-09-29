@@ -1,0 +1,3899 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#005bfa">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title id="pageTitle">BiciNay - Ciclopuertos y Ciclovías</title>
+    
+    <!-- Capacitor Native Bridge (Carga dinámica solo en WebView nativo para evitar 404 en navegador) -->
+    <script>
+        if (window.Android || (window.webkit && window.webkit.messageHandlers) || window.Capacitor || window.location.protocol === 'capacitor:') {
+            const script = document.createElement('script');
+            script.src = 'capacitor.js';
+            document.head.appendChild(script);
+            console.log('Capacitor detectado y cargado dinámicamente.');
+        } else {
+            console.log('Entorno navegador web. Omitiendo capacitor.js.');
+        }
+    </script>
+
+    <!-- Mapbox GL JS -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    
+    <!-- Font Awesome 6 & Google Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+    
+    <script src="config.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --primary: #005bfa;
+            --primary-dark: #0045c4;
+            --primary-light: #eff6ff;
+            --header-blue: #005bfa;
+            --secondary: #2563eb;
+            --accent: #f59e0b;
+            --success: #10b981;
+            --danger: #ef4444;
+            --surface: #ffffff;
+            --surface-2: #f8fafc;
+            --surface-3: #f1f5f9;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --text-main: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --shadow-sm: 0 2px 4px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 12px 30px rgba(0,0,0,0.12);
+            --shadow-float: 0 6px 20px rgba(0, 91, 250, 0.35);
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --radius-xl: 28px;
+            --radius-full: 9999px;
+            --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            overscroll-behavior: none;
+            font-family: var(--font-family);
+            background: #005bfa;
+            color: var(--text-main);
+            letter-spacing: -0.01em;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* Full-Screen Mobile App Container (100% Pantalla) */
+        .app-container {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            position: relative;
+            background: var(--surface);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Map Canvas Area (Edge-to-Edge) */
+        .map-container-area {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #e2e8f0;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .mapboxgl-canvas-container {
+            width: 100% !important;
+            height: 100% !important;
+            touch-action: none;
+        }
+
+        .mapboxgl-canvas {
+            outline: none;
+            touch-action: none;
+        }
+
+        .mapbox-nav-middle-left {
+            position: fixed;
+            top: 50%;
+            left: 12px;
+            margin: 0 !important;
+            transform: translateY(-50%);
+        }
+
+        /* Floating Search Card */
+        .floating-search-card {
+            position: absolute;
+            top: max(env(safe-area-inset-top), 16px);
+            left: 14px;
+            right: 14px;
+            max-width: 480px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(16px);
+            border-radius: var(--radius-lg);
+            padding: 14px 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+            z-index: 25;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            touch-action: pan-y;
+        }
+
+        .search-card-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            background: var(--surface-3);
+            border-radius: var(--radius-full);
+            padding: 8px 14px;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .search-input-wrapper:focus-within {
+            background: #ffffff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 91, 250, 0.15);
+        }
+
+        .search-icon {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-right: 8px;
+        }
+
+        .search-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-clear-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px;
+            margin-right: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s ease;
+        }
+
+        .search-clear-btn:hover {
+            color: var(--danger);
+        }
+
+        .search-gps-btn {
+            background: none;
+            border: none;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px;
+        }
+
+        /* Autocomplete Suggestions Dropdown */
+        .search-autocomplete-dropdown {
+            background: #ffffff;
+            border-radius: var(--radius-md);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+            border: 1px solid var(--border);
+            max-height: 250px;
+            overflow-y: auto;
+            display: none;
+            flex-direction: column;
+            overscroll-behavior: contain;
+            touch-action: pan-y;
+            margin-top: 4px;
+        }
+
+        .search-autocomplete-dropdown.open {
+            display: flex;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .autocomplete-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-light);
+            transition: background 0.15s ease;
+        }
+
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-item:hover, .autocomplete-item:active {
+            background: var(--surface-2);
+        }
+
+        .autocomplete-icon-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: #eff6ff;
+            color: #005bfa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .autocomplete-icon-badge.park {
+            background: #dcfce7;
+            color: #10b981;
+        }
+
+        .autocomplete-icon-badge.workshop {
+            background: #eff6ff;
+            color: #0045c4;
+        }
+
+        .autocomplete-icon-badge.mtb {
+            background: #f1e5d6;
+            color: #8b5a2b;
+        }
+
+        .autocomplete-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .autocomplete-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .autocomplete-title mark {
+            background: #fef08a;
+            color: #854d0e;
+            font-weight: 800;
+            border-radius: 2px;
+            padding: 0 1px;
+        }
+
+        .autocomplete-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 2px;
+        }
+
+        .autocomplete-distance {
+            font-size: 11px;
+            font-weight: 700;
+            color: #005bfa;
+        }
+
+        /* Filter Chips Row */
+        .filter-chips-row {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding: 2px 0;
+        }
+
+        .filter-chips-row::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-hint-banner {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: rgba(239, 246, 255, 0.9);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            color: #005bfa;
+            font-size: 11px;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+
+        .filter-hint-banner.hidden {
+            display: none;
+        }
+
+        .filter-chip {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: var(--radius-full);
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: pointer;
+            border: 1.5px solid var(--border);
+            background: var(--surface);
+            color: var(--text-secondary);
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .filter-chip:active {
+            transform: scale(0.93);
+        }
+
+        .filter-chip.active {
+            background: #005bfa;
+            border-color: #005bfa;
+            color: #ffffff;
+            box-shadow: 0 3px 10px rgba(0, 91, 250, 0.35);
+        }
+
+        .filter-chip.active.park {
+            background: #10b981;
+            border-color: #10b981;
+            box-shadow: 0 3px 10px rgba(16, 185, 129, 0.35);
+        }
+
+        .filter-chip.active.workshop {
+            background: #0045c4;
+            border-color: #0045c4;
+            box-shadow: 0 3px 10px rgba(0, 69, 196, 0.35);
+        }
+
+            .filter-chip.active.mtb,
+            .dir-tab-btn.active.mtb {
+                background: #dc2626;
+                border-color: #dc2626;
+                color: #ffffff;
+                box-shadow: 0 3px 10px rgba(220, 38, 38, 0.35);
+            }
+
+            .filter-chip.active.road {
+                background: #6b7280;
+                border-color: #6b7280;
+                color: #ffffff;
+                box-shadow: 0 3px 10px rgba(107, 114, 128, 0.35);
+            }
+
+            .filter-chip.active.touring {
+                background: #f97316;
+                border-color: #f97316;
+                color: #ffffff;
+                box-shadow: 0 3px 10px rgba(249, 115, 22, 0.35);
+            }
+
+            .directory-mtb-details {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 10px;
+                margin-top: 4px;
+                color: #b91c1c;
+                font-size: 11px;
+                font-weight: 700;
+            }
+
+            .directory-mtb-details span {
+                white-space: nowrap;
+            }
+
+            .directory-item-avatar.mtb {
+                background: #f1e5d6;
+                color: #8b5a2b;
+            }
+
+            .route-category-tabs {
+                display: flex;
+                gap: 6px;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .route-category-tabs::-webkit-scrollbar { display: none; }
+
+            .route-category-tab {
+                border: 1px solid #e2e8f0;
+                border-radius: 999px;
+                background: #ffffff;
+                color: #475569;
+                padding: 8px 11px;
+                font: inherit;
+                font-size: 12px;
+                font-weight: 800;
+                white-space: nowrap;
+                cursor: pointer;
+            }
+
+            .route-category-tab.active {
+                background: #8b5a2b;
+                border-color: #8b5a2b;
+                color: #ffffff;
+            }
+
+            .difficulty-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                border-radius: 999px;
+                padding: 3px 7px;
+                font-size: 10px;
+                font-weight: 800;
+            }
+
+            .difficulty-very-hard { background: #fee2e2; color: #b91c1c; }
+            .difficulty-hard { background: #ffedd5; color: #c2410c; }
+            .difficulty-moderate { background: #fef3c7; color: #a16207; }
+            .difficulty-easy { background: #dcfce7; color: #15803d; }
+
+            .nearby-route-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                border-radius: 999px;
+                padding: 3px 7px;
+                background: #dbeafe;
+                color: #1d4ed8;
+                font-size: 10px;
+                font-weight: 800;
+            }
+
+        /* ===== SISTEMA DE ALERTAS TOAST PREMIUM ===== */
+        #toastContainer {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
+            width: 92vw;
+            max-width: 400px;
+        }
+
+        .toast-item {
+            pointer-events: auto;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 13px 16px 0 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10);
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            overflow: hidden;
+            border-left: 4px solid #005bfa;
+            animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: opacity 0.35s ease, transform 0.35s ease;
+        }
+
+        .toast-item.toast-success { border-left-color: #10b981; }
+        .toast-item.toast-error   { border-left-color: #ef4444; }
+        .toast-item.toast-warning { border-left-color: #f59e0b; }
+        .toast-item.toast-info    { border-left-color: #005bfa; }
+
+        .toast-item.toast-exit {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.96);
+        }
+
+        .toast-body {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding-bottom: 12px;
+        }
+
+        .toast-icon-wrap {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .toast-success .toast-icon-wrap { background: #dcfce7; color: #10b981; }
+        .toast-error   .toast-icon-wrap { background: #fee2e2; color: #ef4444; }
+        .toast-warning .toast-icon-wrap { background: #fef9c3; color: #f59e0b; }
+        .toast-info    .toast-icon-wrap { background: #eff6ff; color: #005bfa; }
+
+        .toast-text-block {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .toast-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--text-main);
+            line-height: 1.3;
+        }
+
+        .toast-msg {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            line-height: 1.4;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            font-size: 13px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 2px 4px;
+            line-height: 1;
+            flex-shrink: 0;
+            transition: color 0.15s;
+        }
+
+        .toast-close:hover { color: var(--text-main); }
+
+        .toast-progress-bar {
+            height: 3px;
+            border-radius: 0 0 0 0;
+            margin: 0 -16px;
+            margin-bottom: 0;
+        }
+
+        .toast-success .toast-progress-bar { background: #10b981; }
+        .toast-error   .toast-progress-bar { background: #ef4444; }
+        .toast-warning .toast-progress-bar { background: #f59e0b; }
+        .toast-info    .toast-progress-bar { background: #005bfa; }
+
+        .toast-progress-bar-inner {
+            height: 100%;
+            width: 100%;
+            border-radius: 0;
+            transition: width linear;
+            background: currentColor;
+            opacity: 0.8;
+        }
+
+        @keyframes toastSlideIn {
+            from { opacity: 0; transform: translateY(-16px) scale(0.94); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* FLOATING MAP CONTROLS (Zoom In, Zoom Out, GPS Recenter) */
+        .map-floating-controls {
+            position: absolute;
+            right: 16px;
+            top: 142px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 35;
+        }
+
+        .map-ctrl-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            color: #0f172a;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .map-ctrl-btn:hover {
+            background: #ffffff;
+            transform: scale(1.06);
+            box-shadow: 0 6px 18px rgba(0, 91, 250, 0.25);
+            color: #005bfa;
+        }
+
+        .map-ctrl-btn:active {
+            transform: scale(0.92);
+            background: #f1f5f9;
+        }
+
+        .map-ctrl-btn.gps-btn {
+            color: #005bfa;
+            margin-top: 4px;
+            background: #ffffff;
+        }
+
+        .map-ctrl-btn.gps-btn.active {
+            background: #005bfa;
+            color: #ffffff;
+            box-shadow: 0 6px 18px rgba(0, 91, 250, 0.4);
+        }
+
+        /* FAB MENU (Floating Action Button in Bottom Corner) */
+        .fab-corner-container {
+            position: absolute;
+            right: 18px;
+            bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 12px;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        .fab-corner-container.open {
+            pointer-events: auto;
+        }
+
+        /* Lista de acciones desplegables */
+        .fab-items-list {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(15px);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .fab-corner-container.open .fab-items-list {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .fab-action-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            padding: 6px 6px 6px 14px;
+            border-radius: var(--radius-full);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .fab-action-item:hover {
+            transform: translateX(-4px);
+            background: #ffffff;
+            box-shadow: 0 6px 20px rgba(0, 91, 250, 0.25);
+        }
+
+        .fab-action-item:active {
+            transform: scale(0.95);
+        }
+
+        .fab-action-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+            white-space: nowrap;
+        }
+
+        .fab-action-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #005bfa;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            flex-shrink: 0;
+        }
+
+        .fab-action-icon.green {
+            background: #10b981;
+        }
+
+        .fab-action-icon.amber {
+            background: #f59e0b;
+        }
+
+        .fab-action-icon.blue {
+            background: #0045c4;
+        }
+
+        .fab-action-icon.brown {
+            background: #8b5a2b;
+        }
+
+        /* Botón Principal del FAB (+) */
+        .fab-main-trigger {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #005bfa 0%, #0045c4 100%);
+            color: #ffffff;
+            border: none;
+            box-shadow: var(--shadow-float);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: auto;
+        }
+
+        .fab-main-trigger:hover {
+            transform: scale(1.08);
+        }
+
+        .fab-main-trigger:active {
+            transform: scale(0.92);
+        }
+
+        .fab-corner-container.open .fab-main-trigger {
+            transform: rotate(45deg);
+            background: #ef4444;
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Custom Map Markers & Solid Fast Rendering */
+        .mapboxgl-marker {
+            transition: none !important;
+            animation: none !important;
+            will-change: transform;
+        }
+
+        .custom-marker-container {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: none !important;
+            animation: none !important;
+            will-change: transform;
+        }
+
+        .marker-badge {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #005bfa;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18), 0 0 0 2px #ffffff;
+            transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .marker-badge.park {
+            background: #10b981;
+            box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3), 0 0 0 2px #ffffff;
+        }
+
+        .marker-badge.workshop {
+            background: #0284c7;
+            box-shadow: 0 3px 10px rgba(2, 132, 199, 0.3), 0 0 0 2px #ffffff;
+        }
+
+        .marker-badge.mtb {
+            background: #8b5a2b;
+            box-shadow: 0 3px 10px rgba(139, 90, 43, 0.35), 0 0 0 2px #ffffff;
+        }
+
+        .marker-badge:hover,
+        .marker-badge:active {
+            transform: translateY(-2px) scale(1.16);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24), 0 0 0 2.5px #ffffff;
+        }
+
+        /* User Location Marker (High Visibility Beacon + Dual Pulse) */
+        .user-gps-marker-container {
+            width: 56px;
+            height: 56px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            will-change: transform;
+        }
+
+        .user-gps-pulse {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: rgba(0, 91, 250, 0.35);
+            pointer-events: none;
+        }
+
+        .user-gps-pulse.pulse-1 {
+            animation: userGpsPulse 2.4s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+        }
+
+        .user-gps-pulse.pulse-2 {
+            animation: userGpsPulse 2.4s cubic-bezier(0.2, 0.8, 0.4, 1) infinite 1.2s;
+        }
+
+        .user-gps-beacon {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0 3px rgba(0, 91, 250, 0.3), 0 4px 12px rgba(0, 91, 250, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25);
+            z-index: 5;
+            position: relative;
+        }
+
+        .user-gps-core {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #005bfa;
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.6);
+        }
+
+        @keyframes userGpsPulse {
+            0% {
+                transform: scale(0.35);
+                opacity: 0.95;
+            }
+            70% {
+                transform: scale(1.1);
+                opacity: 0.2;
+            }
+            100% {
+                transform: scale(1.35);
+                opacity: 0;
+            }
+        }
+
+        /* Mapbox Popup Styling */
+        .mapboxgl-popup-content {
+            border-radius: var(--radius-lg) !important;
+            padding: 0 !important;
+            box-shadow: var(--shadow-lg) !important;
+            overflow: hidden !important;
+            border: 1px solid var(--border) !important;
+            min-width: 240px;
+            max-width: 280px;
+        }
+
+        .mapboxgl-popup-close-button {
+            color: #ffffff !important;
+            padding: 6px 10px !important;
+            font-size: 16px !important;
+            z-index: 10;
+        }
+
+        .popup-header-box {
+            background: linear-gradient(135deg, #005bfa 0%, #0045c4 100%);
+            background-size: cover;
+            background-position: center;
+            color: #ffffff;
+            padding: 14px 16px;
+            position: relative;
+        }
+
+        .popup-header-box.has-image::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.18), rgba(15, 23, 42, 0.86));
+        }
+
+        .popup-header-box.has-image > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .popup-category-tag {
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-bottom: 6px;
+        }
+
+        .popup-header-title {
+            font-size: 15px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .popup-body-box {
+            padding: 14px 16px;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .popup-dist-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #005bfa;
+        }
+
+        .popup-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .popup-actions-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .popup-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .popup-btn.primary {
+            background: #005bfa;
+            color: #ffffff;
+        }
+
+        .popup-btn.primary:hover {
+            background: #0045c4;
+        }
+
+        /* Slide-up Sheets & Modals */
+        .bottom-sheet-modal {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            max-width: 520px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 28px 28px 0 0;
+            box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.18);
+            z-index: 60;
+            transform: translateY(105%);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 85vh;
+            height: 85vh;
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid var(--border);
+            touch-action: pan-y;
+            pointer-events: none;
+        }
+
+        .bottom-sheet-modal.open {
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .sheet-handle-bar {
+            width: 44px;
+            height: 5px;
+            background: #cbd5e1;
+            border-radius: 3px;
+            margin: 12px auto 6px;
+            cursor: pointer;
+        }
+
+        .sheet-header {
+            padding: 10px 20px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .sheet-header-title-box h3 {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .sheet-header-title-box p {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin: 2px 0 0;
+        }
+
+        .sheet-close-btn {
+            background: var(--surface-3);
+            border: none;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .sheet-close-btn:hover {
+            background: #e2e8f0;
+            color: var(--text-main);
+        }
+
+        /* Directory Search & Filter Controls */
+        .directory-controls-box {
+            padding: 12px 20px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border-light);
+            flex-shrink: 0;
+        }
+
+        .directory-search-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            background: #ffffff;
+            border-radius: var(--radius-full);
+            padding: 6px 14px;
+            border: 1.5px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: all 0.2s ease;
+        }
+
+        .directory-search-wrapper:focus-within {
+            border-color: #005bfa;
+            box-shadow: 0 0 0 3px rgba(0, 91, 250, 0.12);
+        }
+
+        .directory-search-wrapper i {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+
+        .directory-search-input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 13px;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .directory-tabs-row {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .directory-tabs-row::-webkit-scrollbar {
+            display: none;
+        }
+
+        .dir-tab-btn {
+            padding: 6px 12px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 700;
+            background: #ffffff;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .dir-tab-btn.active {
+            background: #005bfa;
+            color: #ffffff;
+            border-color: #005bfa;
+            box-shadow: 0 2px 8px rgba(0, 91, 250, 0.3);
+        }
+
+        .dir-tab-btn.park.active {
+            background: #10b981;
+            border-color: #10b981;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+        }
+
+        .dir-tab-btn.workshop.active {
+            background: #0045c4;
+            border-color: #0045c4;
+            box-shadow: 0 2px 8px rgba(0, 69, 196, 0.3);
+        }
+
+        /* Directory Cards */
+        .directory-cards-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px 20px 24px;
+        }
+
+        .directory-item-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+
+        .directory-item-card:hover, .directory-item-card:active {
+            border-color: #005bfa;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(0, 91, 250, 0.1);
+        }
+
+        .directory-item-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: #eff6ff;
+            color: #005bfa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+            box-shadow: inset 0 0 0 1px rgba(0, 91, 250, 0.1);
+        }
+
+        .directory-item-avatar.park {
+            background: #dcfce7;
+            color: #10b981;
+            box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.15);
+        }
+
+        .directory-item-avatar.workshop {
+            background: #f0f4ff;
+            color: #0045c4;
+            box-shadow: inset 0 0 0 1px rgba(0, 69, 196, 0.15);
+        }
+
+        .directory-item-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .directory-item-title {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: #0f172a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .directory-item-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        .directory-badge-type {
+            font-size: 9.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 1px 6px;
+            border-radius: 6px;
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .directory-badge-type.ciclopuerto {
+            background: #e0edff;
+            color: #005bfa;
+        }
+
+        .directory-badge-type.park {
+            background: #dcfce7;
+            color: #059669;
+        }
+
+        .directory-badge-type.workshop {
+            background: #ede9fe;
+            color: #0045c4;
+        }
+
+        .directory-item-distance {
+            font-size: 11px;
+            font-weight: 700;
+            color: #005bfa;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .directory-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .directory-action-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            color: #005bfa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .directory-action-btn:hover {
+            background: #005bfa;
+            color: #ffffff;
+            border-color: #005bfa;
+        }
+
+        .directory-action-btn.call {
+            color: #10b981;
+        }
+
+        .directory-action-btn.call:hover {
+            background: #10b981;
+            color: #ffffff;
+            border-color: #10b981;
+        }
+
+        .sheet-content {
+            padding: 0;
+            overflow-y: auto;
+            flex: 1;
+            touch-action: pan-y;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Center Modal */
+        .center-app-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            touch-action: pan-y;
+            pointer-events: none;
+        }
+
+        .center-app-modal.open {
+            display: flex;
+            pointer-events: auto;
+            animation: fadeIn 0.25s ease;
+        }
+
+        .modal-inner-card {
+            background: #ffffff;
+            border-radius: var(--radius-xl);
+            max-width: 380px;
+            width: 100%;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            touch-action: pan-y;
+        }
+
+        .tips-tab-bar {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+            padding: 12px 16px 0;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .tips-tab-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            background: #ffffff;
+            color: #475569;
+            border: 1px solid #dbeafe;
+            border-radius: 16px;
+            padding: 10px 6px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-height: 62px;
+        }
+
+        .tips-tab-btn i {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #eff6ff;
+            color: #005bfa;
+            font-size: 12px;
+        }
+
+        .tips-tab-btn.active {
+            background: linear-gradient(135deg, #005bfa 0%, #0045c4 100%);
+            border-color: #005bfa;
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(0, 91, 250, 0.2);
+        }
+
+        .tips-tab-btn.active i {
+            background: rgba(255, 255, 255, 0.18);
+            color: #fff;
+        }
+
+        .tips-tab-panel {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            padding: 16px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tips-tab-panel.active {
+            display: flex;
+        }
+
+        .tips-panel-title {
+            font-size: 10.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #005bfa;
+            margin: 4px 0 2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUpModal {
+            from { transform: translateY(20px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* MINIMALIST SPLASH SCREEN (#005bfa) CON BARRA DE CARGA REAL */
+        .minimal-splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #005bfa;
+            background: linear-gradient(180deg, #005bfa 0%, #0045c4 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .splash-logo-circle {
+            width: 130px;
+            height: 130px;
+            background: #ffffff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 24px;
+            padding: 16px;
+        }
+
+        .splash-logo-circle img {
+            width: 85px;
+            height: 85px;
+            object-fit: contain;
+        }
+
+        .splash-spinner-ring {
+            width: 34px;
+            height: 34px;
+            border: 3.5px solid rgba(255, 255, 255, 0.25);
+            border-top: 3.5px solid #ffffff;
+            border-radius: 50%;
+            animation: spin 0.85s linear infinite;
+            margin-bottom: 14px;
+        }
+
+        .splash-loading-text {
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+            text-align: center;
+            min-height: 20px;
+        }
+
+        .splash-progress-container {
+            width: 190px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 12px;
+            position: relative;
+        }
+
+        .splash-progress-bar {
+            height: 100%;
+            width: 15%;
+            background: #ffffff;
+            border-radius: 4px;
+            transition: width 0.35s ease;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- PANTALLA DE SPLASH MINIMALISTA (#005bfa) CON PRECARGA COMPLETA -->
+    <div id="splashScreen" class="minimal-splash-screen">
+        <div class="splash-logo-circle">
+            <img src="img/logo.png" alt="BiciNay Logo" onerror="this.outerHTML='<i class=\'fas fa-bicycle\' style=\'font-size: 54px; color: #005bfa;\'></i>'">
+        </div>
+        <div class="splash-spinner-ring"></div>
+        <div class="splash-loading-text" id="splashLoadingText">Iniciando BiciNay...</div>
+        <div class="splash-progress-container">
+            <div class="splash-progress-bar" id="splashProgressBar"></div>
+        </div>
+    </div>
+
+    <!-- APLICACIÓN MÓVIL FULL-SCREEN (100% PANTALLA) -->
+    <div class="app-container">
+
+        <!-- Área del mapa interactivo con Mapbox -->
+        <div class="map-container-area">
+            <div id="map"></div>
+
+            <!-- Tarjeta flotante de búsqueda -->
+            <div class="floating-search-card" id="floatingSearchCard">
+                <div class="search-card-title">¿Dónde quieres ir?</div>
+                
+                <div class="search-input-wrapper">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="mapSearchInput" class="search-input" placeholder="Busca ciclopuerto, parque o negocio" autocomplete="off">
+                    <button id="searchClearBtn" class="search-clear-btn" style="display:none;" title="Limpiar búsqueda">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <button id="searchGpsBtn" class="search-gps-btn" title="Centrar mi ubicación">
+                        <i class="fa-solid fa-crosshairs"></i>
+                    </button>
+                </div>
+
+                <!-- Lista de Autocompletado -->
+                <div id="searchAutocompleteList" class="search-autocomplete-dropdown"></div>
+
+                <!-- Selector de categorías - Chips premium -->
+                <div class="filter-chips-row" id="filterChipsRow" role="group" aria-label="Filtrar por categoría">
+                    <div class="filter-chip" data-filter="ciclopuertos" id="chipCiclopuertos">
+                        <i class="fas fa-bicycle"></i> Ciclopuertos
+                    </div>
+                    <div class="filter-chip park" data-filter="parques" id="chipParques">
+                        <i class="fas fa-tree"></i> Parques
+                    </div>
+                    <div class="filter-chip park" data-filter="ciclovias" id="chipCiclovias">
+                        <i class="fas fa-route"></i> Ciclovías
+                    </div>
+                    <div class="filter-chip mtb" data-filter="mtb" id="chipMtb">
+                        <i class="fas fa-mountain"></i> MTB
+                    </div>
+                    <div class="filter-chip road" data-filter="road" id="chipRoad">
+                        <i class="fas fa-road"></i> Carretera
+                    </div>
+                    <div class="filter-chip touring" data-filter="touring" id="chipTouring">
+                        <i class="fas fa-compass"></i> Cicloturismo
+                    </div>
+                    <div class="filter-chip workshop" data-filter="talleres" id="chipTalleres">
+                        <i class="fas fa-store"></i> Negocios
+                    </div>
+                </div>
+                <div class="filter-hint-banner" id="filterHintBanner">
+                    <i class="fas fa-circle-info"></i>
+                    <span>Toca una opción del filtro para mostrar rutas y puntos</span>
+                </div>
+            </div>
+
+            <!-- FAB MENÚ EN LA ESQUINA INFERIOR -->
+            <div class="fab-corner-container" id="fabCornerContainer">
+                
+                <!-- Lista de opciones desplegables con iconos FAB -->
+                <div class="fab-items-list">
+                    
+                    <!-- Mi Ubicación -->
+                    <div class="fab-action-item" id="fabActionLocation">
+                        <span class="fab-action-label">Mi ubicación</span>
+                        <div class="fab-action-icon amber"><i class="fas fa-crosshairs"></i></div>
+                    </div>
+
+                    <div class="fab-action-item" id="fabActionRoutes">
+                        <span class="fab-action-label">Rutas</span>
+                        <div class="fab-action-icon brown"><i class="fas fa-route"></i></div>
+                    </div>
+
+                    <!-- Lista de estaciones -->
+                    <div class="fab-action-item" id="fabActionList">
+                        <span class="fab-action-label">Lista de estaciones</span>
+                        <div class="fab-action-icon blue"><i class="fas fa-list-ul"></i></div>
+                    </div>
+
+                    <div class="fab-action-item" id="fabActionBusinesses">
+                        <span class="fab-action-label">Negocios</span>
+                        <div class="fab-action-icon blue"><i class="fas fa-store"></i></div>
+                    </div>
+
+                    <!-- Tips de seguridad -->
+                    <div class="fab-action-item" id="fabActionTips">
+                        <span class="fab-action-label">Tips ciclistas</span>
+                        <div class="fab-action-icon"><i class="fas fa-lightbulb"></i></div>
+                    </div>
+
+                </div>
+
+                <!-- Botón principal FAB (+) -->
+                <button class="fab-main-trigger" id="fabMainBtn" title="Menú de opciones">
+                    <i class="fas fa-plus" id="fabTriggerIcon"></i>
+                </button>
+            </div>
+
+        </div>
+
+        <!-- SLIDE-UP SHEET: Directorio / Lista de Estaciones -->
+        <div class="bottom-sheet-modal" id="stationsDirectorySheet">
+            <div class="sheet-handle-bar" onclick="closeSheet('stationsDirectorySheet')"></div>
+            <div class="sheet-header">
+                <div class="sheet-header-title-box">
+                    <h3 id="sheetDirectoryTitle">Explorar Estaciones</h3>
+                    <p id="sheetDirectorySubtitle">Ciclopuertos, ciclovías y negocios en Nayarit</p>
+                </div>
+                <button class="sheet-close-btn" onclick="closeSheet('stationsDirectorySheet')" title="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Controles de búsqueda y filtros dentro del directorio -->
+            <div class="directory-controls-box">
+                <div class="directory-search-wrapper">
+                    <i class="fas fa-magnifying-glass"></i>
+                    <input type="text" id="dirSearchInput" class="directory-search-input" placeholder="Buscar por nombre, zona o calle..." autocomplete="off">
+                </div>
+                <div class="directory-tabs-row" id="dirTabsRow">
+                    <button class="dir-tab-btn active" data-tab="all" id="dirTabAll">
+                        <i class="fas fa-layer-group"></i> Todas <span id="dirCountAll" style="opacity:0.75;"></span>
+                    </button>
+                    <button class="dir-tab-btn" data-tab="ciclopuertos" id="dirTabCiclopuertos">
+                        <i class="fas fa-bicycle"></i> Ciclopuertos <span id="dirCountCiclopuertos" style="opacity:0.75;"></span>
+                    </button>
+                    <button class="dir-tab-btn park" data-tab="parques" id="dirTabParques">
+                        <i class="fas fa-tree"></i> Parques <span id="dirCountParques" style="opacity:0.75;"></span>
+                    </button>
+                    <button class="dir-tab-btn park" data-tab="ciclovias" id="dirTabCiclovias">
+                        <i class="fas fa-route"></i> Ciclovías <span id="dirCountCiclovias" style="opacity:0.75;"></span>
+                    </button>
+                    <button class="dir-tab-btn mtb" data-tab="mtb" id="dirTabMtb">
+                        <i class="fas fa-mountain"></i> MTB <span id="dirCountMtb" style="opacity:0.75;"></span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="sheet-content" id="stationsSheetContent">
+                <!-- Lista dinámica generada por renderStationsDirectory() -->
+            </div>
+        </div>
+
+        <div class="bottom-sheet-modal" id="routesDirectorySheet">
+            <div class="sheet-handle-bar" onclick="closeSheet('routesDirectorySheet')"></div>
+            <div class="sheet-header">
+                <div class="sheet-header-title-box">
+                    <h3>Rutas</h3>
+                    <p>Recorridos por modalidad y dificultad</p>
+                </div>
+                <button class="sheet-close-btn" onclick="closeSheet('routesDirectorySheet')" title="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="directory-controls-box">
+                <div class="route-category-tabs" id="routeCategoryTabs">
+                    <button class="route-category-tab active" data-route-category="mtb"><i class="fas fa-mountain"></i> Montaña <span id="routeCountMtb">(0)</span></button>
+                    <button class="route-category-tab" data-route-category="road"><i class="fas fa-road"></i> Carretera <span id="routeCountRoad">(0)</span></button>
+                    <button class="route-category-tab" data-route-category="touring"><i class="fas fa-compass"></i> Cicloturismo <span id="routeCountTouring">(0)</span></button>
+                </div>
+            </div>
+            <div class="sheet-content" id="routesSheetContent"></div>
+        </div>
+
+        <!-- SLIDE-UP SHEET: Negocios de bicicletas -->
+        <div class="bottom-sheet-modal" id="businessDirectorySheet">
+            <div class="sheet-handle-bar" onclick="closeSheet('businessDirectorySheet')"></div>
+            <div class="sheet-header">
+                <div class="sheet-header-title-box">
+                    <h3>Negocios de bicicletas</h3>
+                    <p>Talleres, tiendas y renta de bicis</p>
+                </div>
+                <button class="sheet-close-btn" onclick="closeSheet('businessDirectorySheet')" title="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="directory-controls-box">
+                <div class="directory-search-wrapper">
+                    <i class="fas fa-magnifying-glass"></i>
+                    <input type="text" id="businessSearchInput" class="directory-search-input" placeholder="Buscar negocio, zona o tipo..." autocomplete="off">
+                </div>
+                <div class="directory-tabs-row" id="businessTabsRow">
+                    <button class="dir-tab-btn active" data-business-tab="negocios"><i class="fas fa-layer-group"></i> Todos <span id="businessCountAll" style="opacity:0.75;"></span></button>
+                    <button class="dir-tab-btn workshop" data-business-tab="taller"><i class="fas fa-wrench"></i> Talleres</button>
+                    <button class="dir-tab-btn workshop" data-business-tab="tienda"><i class="fas fa-shop"></i> Tiendas</button>
+                    <button class="dir-tab-btn workshop" data-business-tab="renta"><i class="fas fa-bicycle"></i> Renta</button>
+                </div>
+            </div>
+            <div class="sheet-content" id="businessSheetContent"></div>
+        </div>
+
+    </div>
+
+    <!-- MODAL: CICLISMO URBANO — DERECHOS Y ASPECTOS BÁSICOS -->
+    <div class="center-app-modal" id="helpTipsModal">
+        <div class="modal-inner-card" style="max-height: 92vh; display: flex; flex-direction: column;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #005bfa, #0045c4); color: #fff; padding: 18px 20px; position: relative; flex-shrink: 0; border-radius: 24px 24px 0 0;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 38px; height: 38px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-bicycle" style="font-size: 18px;"></i>
+                    </div>
+                    <div>
+
+                        <h3 style="font-size: 17px; font-weight: 800; margin: 0;">Ciclismo Urbano</h3>
+                        <p style="font-size: 11px; opacity: 0.85; margin: 2px 0 0;">Derechos y aspectos básicos</p>
+                    </div>
+                </div>
+                <button style="position: absolute; right: 14px; top: 14px; background: rgba(255,255,255,0.2); border: none; color: #fff; font-size: 14px; cursor: pointer; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;" onclick="closeModal('helpTipsModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="tips-tab-bar" role="tablist" aria-label="Tips ciclistas">
+                <button class="tips-tab-btn active" type="button" data-tip-tab="rights" aria-selected="true">
+                    <i class="fas fa-scale-balanced"></i>
+                    <span>Derechos</span>
+                </button>
+                <button class="tips-tab-btn" type="button" data-tip-tab="safety" aria-selected="false">
+                    <i class="fas fa-shield-heart"></i>
+                    <span>Seguridad</span>
+                </button>
+                <button class="tips-tab-btn" type="button" data-tip-tab="maintenance" aria-selected="false">
+                    <i class="fas fa-screwdriver-wrench"></i>
+                    <span>Mecánica</span>
+                </button>
+                <button class="tips-tab-btn" type="button" data-tip-tab="habits" aria-selected="false">
+                    <i class="fas fa-leaf"></i>
+                    <span>Prácticas</span>
+                </button>
+            </div>
+
+            <div class="tips-tab-panels" style="flex: 1; min-height: 0; overflow: hidden;">
+                <div class="tips-tab-panel active" data-tip-panel="rights">
+                    <div class="tips-panel-title"><i class="fas fa-scale-balanced"></i> Derechos del Ciclista en la Vía</div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #eff6ff; border-radius: 14px; padding: 12px; border: 1px solid #dbeafe;">
+                        <div style="width: 36px; height: 36px; background: #005bfa; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-road" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Derecho al carril completo</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Tienes derecho legal a ocupar el centro o la mitad del carril para ser visible y evitar rebases peligrosos. Eres un vehículo más.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #f0fdf4; border-radius: 14px; padding: 12px; border: 1px solid #dcfce7;">
+                        <div style="width: 36px; height: 36px; background: #10b981; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-arrows-left-right" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">1.5 metros de distancia al rebasar</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Los automóviles y camiones deben dejarte al menos 1.5 metros de separación lateral obligatoria al adelantarte.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #faf5ff; border-radius: 14px; padding: 12px; border: 1px solid #f3e8ff;">
+                        <div style="width: 36px; height: 36px; background: #8b5cf6; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-shield-halved" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Prioridad en ciclovías y cruces</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">En ciclovías y carriles exclusivos tienes preferencia sobre vehículos que van a dar vuelta o que se incorporan a la vía.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #fef2f2; border-radius: 14px; padding: 12px; border: 1px solid #fee2e2;">
+                        <div style="width: 36px; height: 36px; background: #ef4444; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-person-walking" style="color: #fff; font-size: 16px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">La banqueta es del peatón</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">No circules sobre la banqueta. Si necesitas usarla, bájate de la bicicleta y camina con ella a tu lado para proteger a los peatones.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tips-tab-panel" data-tip-panel="safety">
+                    <div class="tips-panel-title" style="color: #d97706;"><i class="fas fa-triangle-exclamation"></i> Seguridad Vial y Maniobras</div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #fffbeb; border-radius: 14px; padding: 12px; border: 1px solid #fef3c7;">
+                        <div style="width: 36px; height: 36px; background: #f59e0b; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-hard-hat" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Usa casco correctamente abrochado</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">El casco reduce el 85% de lesiones graves en la cabeza. Ajústalo a dos dedos sobre tus cejas sin que se incline.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #fff7ed; border-radius: 14px; padding: 12px; border: 1px solid #ffedd5;">
+                        <div style="width: 36px; height: 36px; background: #f97316; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-lightbulb" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Luces blanca frontal y roja trasera</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Obligatorias de noche o al anochecer. Usa luz delantera fija y trasera intermitente para ser visto a más de 100 metros.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #f0f9ff; border-radius: 14px; padding: 12px; border: 1px solid #e0f2fe;">
+                        <div style="width: 36px; height: 36px; background: #0284c7; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-eye" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Haz contacto visual con los choferes</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">En esquinas e intersecciones, mira a los ojos al conductor para asegurarte de que te vio antes de cruzar frente a él.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #fff1f2; border-radius: 14px; padding: 12px; border: 1px solid #ffe4e6;">
+                        <div style="width: 36px; height: 36px; background: #e11d48; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-truck-front" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Cuidado con puntos ciegos pesados</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Nunca te detengas junto al lado derecho de camiones o autobuses urbanos; si tú no ves sus espejos, ellos no te ven a ti.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #fdf4ff; border-radius: 14px; padding: 12px; border: 1px solid #fae8ff;">
+                        <div style="width: 36px; height: 36px; background: #a855f7; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-hand" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Señaliza tus giros con tiempo</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Brazo izquierdo extendido = giro a la izquierda. Brazo derecho extendido = giro a la derecha. Brazo abajo con palma hacia atrás = frenando.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #f1f5f9; border-radius: 14px; padding: 12px; border: 1px solid #e2e8f0;">
+                        <div style="width: 36px; height: 36px; background: #475569; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-ear-listen" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Oídos atentos al tráfico</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Evita audífonos con cancelación de ruido o en ambos oídos. Escuchar motores, cláxons y sirenas te previene de peligros a tiempo.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tips-tab-panel" data-tip-panel="maintenance">
+                    <div class="tips-panel-title" style="color: #0d9488;"><i class="fas fa-wrench"></i> Mantenimiento y Mecánica Rápida</div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #f0fdfa; border-radius: 14px; padding: 12px; border: 1px solid #ccfbf1;">
+                        <div style="width: 36px; height: 36px; background: #0d9488; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-list-check" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">El chequeo diario ABC</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;"><strong>A</strong>ire (llantas firmes), <strong>B</strong>rakes/Frenos (respuesta inmediata) y <strong>C</strong>adena (limpia y lubricada sin ruidos).</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #ecfeff; border-radius: 14px; padding: 12px; border: 1px solid #cffafe;">
+                        <div style="width: 36px; height: 36px; background: #0891b2; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-gauge-high" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Presión adecuada de llantas</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Llantas con buena presión evitan ponchaduras por pellizco (mordedura de serpiente) y reducen el esfuerzo de pedaleo a la mitad.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tips-tab-panel" data-tip-panel="habits">
+                    <div class="tips-panel-title" style="color: #059669;"><i class="fas fa-leaf"></i> Buenas Prácticas en la Ciudad</div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #f0fdf4; border-radius: 14px; padding: 12px; border: 1px solid #dcfce7;">
+                        <div style="width: 36px; height: 36px; background: #059669; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-car-side" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Cuidado con la zona de puertas ("Dooring")</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Deja al menos 1 metro de distancia al pasar junto a autos estacionados para evitar chocar con puertas abiertas de sorpresa.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #eff6ff; border-radius: 14px; padding: 12px; border: 1px solid #dbeafe;">
+                        <div style="width: 36px; height: 36px; background: #005bfa; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-lock" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Estacionamiento seguro en ciclopuertos</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Usa preferentemente candado tipo U-Lock asegurando el cuadro y la rueda delantera al poste del ciclopuerto oficial.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #fefce8; border-radius: 14px; padding: 12px; border: 1px solid #fef08a;">
+                        <div style="width: 36px; height: 36px; background: #ca8a04; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-cubes-stacked" style="color: #fff; font-size: 15px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Cruza rieles y rejillas en ángulo recto (90°)</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Cruza vías de tren o alcantarillas perpendicularmente para que tu llanta no se atore en las ranuras.</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: flex-start; background: #f0fdf4; border-radius: 14px; padding: 12px; border: 1px solid #dcfce7;">
+                        <div style="width: 36px; height: 36px; background: #16a34a; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fas fa-bottle-water" style="color: #fff; font-size: 16px;"></i>
+                        </div>
+                        <div>
+                            <strong style="font-size: 13px; color: #0f172a; display: block;">Hidratación y clima cálido en Nayarit</strong>
+                            <p style="font-size: 11px; color: #475569; margin: 3px 0 0; line-height: 1.5;">Lleva siempre agua potable y protector solar en días soleados. Bebe pequeños sorbos antes de sentir sed.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="padding: 12px 16px; background: #f8fafc; border-top: 1px solid #e2e8f0; flex-shrink: 0; border-radius: 0 0 24px 24px;">
+                <button style="background: #005bfa; color: #fff; border: none; padding: 12px 20px; border-radius: 20px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; font-family: inherit;" onclick="closeModal('helpTipsModal')">
+                    <i class="fas fa-check" style="margin-right: 6px;"></i> ¡Listo, a pedalear!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT DE LA APLICACIÓN -->
+    <script>
+        // Configuración y variables principales
+        mapboxgl.accessToken = window.CONFIG?.MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoiZ3VpZ281NjciLCJhIjoiY21ibGF1bXdsMHluMTJrb2Z1NmptNWhlZyJ9.h1FAW0nyayHEZA6u8OJErg';
+
+        let map = null;
+        let userLocation = null;
+        let userMarker = null;
+        let hasCenteredUserLocation = false;
+        let allMarkers = [];
+        let ciclopuertosData = [];
+        let parquesLinealesData = [];
+        let cicloviasLinealesData = [];
+        let senderosLinealesData = [];
+        let municipiosData = [];
+        let currentMunicipality = '';
+        let hasLoggedMunicipality = false;
+            let mtbRoutesData = [];
+            let mtbFeaturesData = [];
+            const routeCollections = {
+                mtb: { routes: [], features: [], label: 'Montaña', icon: 'fa-mountain' },
+                road: { routes: [], features: [], label: 'Carretera', icon: 'fa-road' },
+                touring: { routes: [], features: [], label: 'Cicloturismo', icon: 'fa-compass' }
+            };
+            let selectedMtbRouteName = '';
+        let talleresData = [];
+        let fabOpen = false;
+
+        function getBusinessName(properties = {}) {
+            return properties.nombre || properties.name || 'Negocio de bicicletas';
+        }
+
+        function getBusinessDescription(properties = {}) {
+            return properties.descripcionBreve || properties.description || 'Servicios para ciclistas.';
+        }
+
+        function getBusinessPhone(properties = {}) {
+            return properties.numero || properties.phone || '';
+        }
+
+        function getBusinessType(properties = {}) {
+            return properties.tipo || 'Negocio de bicis';
+        }
+
+        function matchesBusinessTab(properties = {}, tab = 'negocios') {
+            if (tab === 'negocios' || tab === 'all') return true;
+            const type = normalizeSearchText(getBusinessType(properties));
+            if (tab === 'taller') return type.includes('taller');
+            if (tab === 'tienda') return type.includes('tienda');
+            if (tab === 'renta') return type.includes('renta');
+            return false;
+        }
+
+        function getBusinessLocation(properties = {}) {
+            return properties.zona || properties.zone || properties.ciudad || properties.city || 'Tepic';
+        }
+
+        function getBusinessImage(properties = {}) {
+            return properties.imagen || '';
+        }
+
+        function getBusinessWebsite(properties = {}) {
+            return properties.paginaWeb || properties.redes?.web || '';
+        }
+
+        function getBusinessIcon(properties = {}) {
+            const type = normalizeSearchText(getBusinessType(properties));
+            if (type.includes('renta')) return 'fa-bicycle';
+            if (type.includes('tienda')) return 'fa-shop';
+            if (type.includes('taller')) return 'fa-wrench';
+            return properties.icon || 'fa-store';
+        }
+
+        function getLinealCategoryByTitle(title = '') {
+            const normalized = (title || '').toLowerCase().trim();
+            if (!normalized) return 'parques';
+            if (normalized.startsWith('parque')) return 'parques';
+            if (normalized.startsWith('ciclovia')) return 'ciclovias';
+            if (normalized.startsWith('sendero')) return 'senderos';
+            if (normalized.includes('parque')) return 'parques';
+            if (normalized.includes('ciclovia')) return 'ciclovias';
+            if (normalized.includes('sendero')) return 'senderos';
+            return 'parques';
+        }
+
+            function normalizeRouteName(name = '') {
+                return normalizeSearchText(name).replace(/\s+/g, ' ');
+            }
+
+            function isPointInRing(point, ring) {
+                let inside = false;
+                for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+                    const [currentLng, currentLat] = ring[index];
+                    const [previousLng, previousLat] = ring[previous];
+                    const intersects = ((currentLat > point[1]) !== (previousLat > point[1])) &&
+                        (point[0] < (previousLng - currentLng) * (point[1] - currentLat) / (previousLat - currentLat) + currentLng);
+                    if (intersects) inside = !inside;
+                }
+                return inside;
+            }
+
+            function isPointInMunicipality(point, geometry) {
+                if (!point || !geometry) return false;
+                const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.type === 'MultiPolygon' ? geometry.coordinates : [];
+                return polygons.some(polygon => isPointInRing(point, polygon[0]));
+            }
+
+            function getFeaturePoints(feature) {
+                const coordinates = feature?.geometry?.coordinates;
+                if (!coordinates) return [];
+                if (feature.geometry.type === 'LineString') return coordinates;
+                if (feature.geometry.type === 'MultiLineString') return coordinates.flat();
+                return [];
+            }
+
+            function getMunicipalityForFeature(feature) {
+                const points = getFeaturePoints(feature);
+                const municipality = municipiosData.find(item => isPointInMunicipality(points[0], item.geometry));
+                return municipality?.properties?.title || '';
+            }
+
+            function getMunicipalityAtPoint(point) {
+                const municipality = municipiosData.find(item => isPointInMunicipality(point, item.geometry));
+                return municipality?.properties?.title || '';
+            }
+
+            function updateDetectedMunicipality(point) {
+                const detectedMunicipality = getMunicipalityAtPoint(point);
+                if (detectedMunicipality === currentMunicipality && hasLoggedMunicipality) return false;
+                currentMunicipality = detectedMunicipality;
+                hasLoggedMunicipality = true;
+                console.log('Municipio detectado:', currentMunicipality || 'Fuera de los municipios cargados');
+                return true;
+            }
+
+        function getLinealCategoryLabel(category = 'parques') {
+            if (category === 'ciclovias') return 'Ciclovía';
+            if (category === 'senderos') return 'Senderos';
+            return 'Parque';
+        }
+
+        function classifyLinealFeatures(features = []) {
+            const groups = { parques: [], ciclovias: [], senderos: [] };
+            features.forEach(feature => {
+                const title = feature?.properties?.title || 'Parque Lineal';
+                const category = getLinealCategoryByTitle(title);
+                groups[category].push(feature);
+            });
+            return groups;
+        }
+
+        function getAllLinealFeatures() {
+            return [
+                ...parquesLinealesData.map(feature => ({ feature, category: 'parques' })),
+                ...cicloviasLinealesData.map(feature => ({ feature, category: 'ciclovias' }))
+            ];
+        }
+
+            function getAllMtbFeatures() {
+                return Object.entries(routeCollections).flatMap(([category, collection]) => collection.features.map(feature => ({ feature, category, route: feature.properties?.routeData })));
+            }
+
+        function normalizeSearchText(value = '') {
+            return String(value || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim()
+                .replace(/\s+/g, ' ');
+        }
+
+        function matchesSearchText(title = '', query = '') {
+            const cleanTitle = normalizeSearchText(title);
+            const cleanQuery = normalizeSearchText(query);
+            if (!cleanQuery) return true;
+            if (!cleanTitle) return false;
+            if (cleanTitle === cleanQuery) return true;
+            if (cleanTitle.startsWith(cleanQuery)) return true;
+            if (cleanTitle.includes(` ${cleanQuery}`)) return true;
+            const titleTokens = cleanTitle.split(/\s+/);
+            return titleTokens.some(token => token === cleanQuery || token.startsWith(cleanQuery));
+        }
+
+        function getLinealFeatureCollection(category = 'all') {
+            const allEntries = getAllLinealFeatures();
+            if (category === 'all') {
+                return { type: 'FeatureCollection', features: allEntries.map(entry => entry.feature) };
+            }
+            const filteredEntries = allEntries.filter(entry => entry.category === category);
+            return { type: 'FeatureCollection', features: filteredEntries.map(entry => entry.feature) };
+        }
+
+        function getDuplicateLinealTitleCount(rawTitle = '') {
+            const title = (rawTitle || '').trim();
+            if (!title) return 0;
+            const normalized = title.toLowerCase();
+            return getAllLinealFeatures().filter(({ feature }) => {
+                const fTitle = (feature?.properties?.title || '').trim();
+                return fTitle.toLowerCase() === normalized;
+            }).length;
+        }
+
+        function getLinealDisplayTitle(feature, fallbackName = 'Ruta') {
+            const rawTitle = (feature?.properties?.title || '').trim() || fallbackName;
+            const duplicateCount = getDuplicateLinealTitleCount(rawTitle);
+            if (duplicateCount <= 1) return rawTitle;
+
+            const sameTitleEntries = getAllLinealFeatures().filter(({ feature: item }) => {
+                const itemTitle = (item?.properties?.title || '').trim();
+                return itemTitle.toLowerCase() === rawTitle.toLowerCase();
+            });
+            const index = sameTitleEntries.findIndex(entry => entry.feature === feature);
+            return index >= 0 ? `${rawTitle} - Tramo ${index + 1}` : rawTitle;
+        }
+
+        let locationWatchId = null;
+        let isPreloadFinished = false;
+
+        // Inicialización de la aplicación al cargar DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            initMapbox();
+            setupEventListeners();
+            setupTipsTabs();
+            setupRoutesDirectoryTabs();
+            startResourcePreloader();
+        });
+
+        // -------------------------------------------------------------
+        // PRECARGA DE RECURSOS DURANTE EL SPLASH SCREEN
+        // -------------------------------------------------------------
+        function updateSplashProgress(percentage, text) {
+            const bar = document.getElementById('splashProgressBar');
+            const txt = document.getElementById('splashLoadingText');
+            if (bar) bar.style.width = `${Math.min(100, Math.max(5, percentage))}%`;
+            if (txt && text) txt.textContent = text;
+        }
+
+        function hideSplashScreen() {
+            if (isPreloadFinished) return;
+            isPreloadFinished = true;
+            updateSplashProgress(100, '¡Todo listo!');
+            setTimeout(() => {
+                const splash = document.getElementById('splashScreen');
+                if (splash) {
+                    splash.style.opacity = '0';
+                    splash.style.visibility = 'hidden';
+                    setTimeout(() => {
+                        splash.style.display = 'none';
+                        if (map) map.resize();
+                    }, 500);
+                }
+            }, 350);
+        }
+
+        async function startResourcePreloader() {
+            updateSplashProgress(15, 'Iniciando mapa y componentes...');
+
+            // Timeout de seguridad máximo (6 segundos) para garantizar que el splash nunca se quede congelado
+            const safetyTimer = setTimeout(() => {
+                console.warn('Carga finalizada por timeout de seguridad');
+                hideSplashScreen();
+            }, 6000);
+
+            try {
+                // 1. Descargar simultáneamente los datos GeoJSON
+                updateSplashProgress(30, 'Descargando rutas y ciclopuertos...');
+                const negociosUrl = window.CONFIG?.GEOJSON_NEGOCIOS || 'https://codigonayarita.github.io/negocios.json';
+                const [cicloviaJson, bicisJson, negociosJson, carreteraJson, cicloturismoJson, montanaJson, carreteraRoutes, cicloturismoRoutes, montanaRoutes, municipiosJson] = await Promise.all([
+                    fetch(window.CONFIG?.GEOJSON_PARQUES || 'GeoJSON/ciclovia.geojson').then(r => r.json()).catch(err => {
+                        console.warn('Error ciclovia.geojson:', err);
+                        return { features: [] };
+                    }),
+                    fetch(window.CONFIG?.GEOJSON_CICLOPUERTOS || 'GeoJSON/bicis.geojson').then(r => r.json()).catch(err => {
+                        console.warn('Error bicis.geojson:', err);
+                        return { features: [] };
+                    }),
+                    fetch(`${negociosUrl}${negociosUrl.includes('?') ? '&' : '?'}v=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).catch(err => {
+                        console.warn('Error negocios.json:', err);
+                        return { features: [] };
+                        }),
+                    fetch('GeoJSON/Carretera.geojson').then(r => r.json()).catch(err => { console.warn('Error Carretera.geojson:', err); return { features: [] }; }),
+                    fetch('GeoJSON/Cicloturismo.geojson').then(r => r.json()).catch(err => { console.warn('Error Cicloturismo.geojson:', err); return { features: [] }; }),
+                    fetch('GeoJSON/Montaña.geojson').then(r => r.json()).catch(err => { console.warn('Error Montaña.geojson:', err); return { features: [] }; }),
+                    fetch('Carretera.json').then(r => r.json()).catch(err => { console.warn('Error Carretera.json:', err); return []; }),
+                    fetch('Cicloturismo.json').then(r => r.json()).catch(err => { console.warn('Error Cicloturismo.json:', err); return []; }),
+                    fetch('Montaña.json').then(r => r.json()).catch(err => { console.warn('Error Montaña.json:', err); return []; }),
+                    fetch('GeoJSON/Municipios.geojson').then(r => r.json()).catch(err => { console.warn('Error Municipios.geojson:', err); return { features: [] }; })
+                ]);
+
+                municipiosData = municipiosJson.features || [];
+                const classifiedLineal = classifyLinealFeatures(cicloviaJson.features || []);
+                const routeInputs = {
+                    road: { json: carreteraJson, routes: carreteraRoutes },
+                    touring: { json: cicloturismoJson, routes: cicloturismoRoutes },
+                    mtb: { json: montanaJson, routes: montanaRoutes }
+                };
+                Object.entries(routeInputs).forEach(([category, input]) => {
+                    const routes = Array.isArray(input.routes) ? input.routes : [];
+                    const routeNames = new Map(routes.map(route => [normalizeRouteName(route.name), route]));
+                    const features = (input.json.features || []).filter(feature => routeNames.has(normalizeRouteName(feature.properties?.title || ''))).map(feature => ({
+                        ...feature,
+                        properties: { ...feature.properties, routeCategory: category, routeData: { ...routeNames.get(normalizeRouteName(feature.properties?.title || '')), municipality: getMunicipalityForFeature(feature) } }
+                    }));
+                    routeCollections[category].routes = routes.map(route => {
+                        const feature = features.find(item => normalizeRouteName(item.properties?.title || '') === normalizeRouteName(route.name));
+                        return { ...route, municipality: feature?.properties?.routeData?.municipality || '' };
+                    });
+                    routeCollections[category].features = features;
+                });
+                mtbRoutesData = routeCollections.mtb.routes;
+                mtbFeaturesData = routeCollections.mtb.features;
+                document.getElementById('routeCountMtb').textContent = `(${routeCollections.mtb.routes.length})`;
+                document.getElementById('routeCountRoad').textContent = `(${routeCollections.road.routes.length})`;
+                document.getElementById('routeCountTouring').textContent = `(${routeCollections.touring.routes.length})`;
+                const routeFeatureNames = new Set(Object.values(routeCollections).flatMap(collection => collection.features.map(feature => normalizeRouteName(feature.properties?.title || ''))));
+                parquesLinealesData = classifiedLineal.parques.filter(feature => !routeFeatureNames.has(normalizeRouteName(feature.properties?.title || '')));
+                cicloviasLinealesData = classifiedLineal.ciclovias.filter(feature => !routeFeatureNames.has(normalizeRouteName(feature.properties?.title || '')));
+                senderosLinealesData = classifiedLineal.senderos.filter(feature => !routeFeatureNames.has(normalizeRouteName(feature.properties?.title || '')));
+                ciclopuertosData = bicisJson.features || [];
+                talleresData = negociosJson.features || [];
+
+                updateSplashProgress(55, 'Esperando renderizado del mapa...');
+
+                // 2. Esperar a que el mapa esté listo
+                await new Promise(resolve => {
+                    if (map && map.loaded()) {
+                        resolve();
+                    } else if (map) {
+                        map.once('load', resolve);
+                        // Fallback si 'load' tarda
+                        setTimeout(resolve, 2500);
+                    } else {
+                        resolve();
+                    }
+                });
+
+                updateSplashProgress(75, 'Cargando marcadores y ciclovías...');
+
+                // 3. Mantener el mapa completamente vacío al inicio; solo se mostrará cuando el usuario active un filtro
+                if (map) {
+                    activeChipFilters.clear();
+                    selectedMtbRouteName = '';
+                    if (map.getSource('mtb-source')) {
+                        map.getSource('mtb-source').setData({ type: 'FeatureCollection', features: [] });
+                    }
+                    if (map.getSource('ciclovia-source')) {
+                        map.getSource('ciclovia-source').setData({ type: 'FeatureCollection', features: [] });
+                    }
+                    ['mtb-line', 'mtb-arrows', 'ciclovia-glow', 'ciclovia-line'].forEach(layerId => {
+                        if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', 'none');
+                    });
+                    allMarkers.forEach(({ marker }) => {
+                        if (marker?.getElement()) marker.getElement().style.display = 'none';
+                    });
+                }
+                renderSideColumns();
+
+                setTimeout(() => {
+                    showInfo('Toca una opción del filtro para mostrar rutas y puntos', 2600);
+                }, 700);
+
+                // 4. Solicitar permiso y ubicación de Android de forma rápida
+                updateSplashProgress(90, 'Obteniendo ubicación GPS...');
+                try {
+                    await Promise.race([
+                        requestUserLocation(false),
+                        new Promise(resolve => setTimeout(resolve, 2000))
+                    ]);
+                } catch (e) {
+                    console.log('GPS inicial diferido:', e);
+                }
+
+                clearTimeout(safetyTimer);
+                hideSplashScreen();
+
+            } catch (err) {
+                console.error('Error durante la precarga:', err);
+                clearTimeout(safetyTimer);
+                hideSplashScreen();
+            }
+        }
+
+        // -------------------------------------------------------------
+        // INICIALIZACIÓN DE MAPBOX CON GESTOS TÁCTILES MÓVILES FLUIDOS
+        // -------------------------------------------------------------
+        function initMapbox() {
+            try {
+                map = new mapboxgl.Map({
+                    container: 'map',
+                    style: window.CONFIG?.MAP_STYLE || 'mapbox://styles/mapbox/streets-v12',
+                    center: [window.CONFIG?.MAP_CENTER_LNG || -104.8950, window.CONFIG?.MAP_CENTER_LAT || 21.5030],
+                    zoom: window.CONFIG?.MAP_ZOOM || 13.5,
+                    pitch: 0,
+                    bearing: 0
+                });
+
+                const navigationControl = new mapboxgl.NavigationControl({ showCompass: false });
+                map.addControl(navigationControl, 'top-left');
+                navigationControl._container.classList.add('mapbox-nav-middle-left');
+
+                map.once('load', () => {
+                    // Igual que en rutas: mapa limpio, sin forzar gestos extra ni comportamientos más pesados.
+                    map.dragPan.enable();
+                    map.touchZoomRotate.enable();
+                    map.doubleClickZoom.enable();
+                    const logo = document.querySelector('.mapboxgl-ctrl-logo');
+                    if (logo) logo.style.display = 'none';
+                    const attrib = document.querySelector('.mapboxgl-ctrl-attrib');
+                    if (attrib) attrib.style.display = 'none';
+                });
+
+                map.on('error', (e) => {
+                    console.error('Error en Mapbox:', e);
+                });
+
+                map.on('click', () => closeAllOverlays());
+
+            } catch (err) {
+                console.error('Error al inicializar mapa:', err);
+            }
+        }
+
+        // -------------------------------------------------------------
+        // PERMISOS Y GEOLOCALIZACIÓN NATIVA ANDROID (CAPACITOR + WEB)
+        // -------------------------------------------------------------
+        async function checkAndRequestLocationPermission() {
+            // 1. Probar plugin nativo de Capacitor Geolocation
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation) {
+                try {
+                    const Geolocation = window.Capacitor.Plugins.Geolocation;
+                    let perm = await Geolocation.checkPermissions();
+                    if (perm.location !== 'granted') {
+                        perm = await Geolocation.requestPermissions();
+                    }
+                    return perm.location === 'granted';
+                } catch (err) {
+                    console.warn('Error solicitando permisos en Capacitor Geolocation:', err);
+                }
+            }
+            // 2. Si no es Capacitor nativo, la Web Geolocation API despliega su propio prompt
+            return 'geolocation' in navigator;
+        }
+
+        async function requestUserLocation(manualClick = false) {
+            if (manualClick) {
+                const gpsBtn = document.getElementById('mapRecenterGpsBtn');
+                if (gpsBtn) gpsBtn.classList.add('active');
+            }
+
+            const hasPermission = await checkAndRequestLocationPermission();
+
+            // Si se ejecuta en Android con Capacitor nativo:
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Geolocation) {
+                try {
+                    const Geolocation = window.Capacitor.Plugins.Geolocation;
+                    const pos = await Geolocation.getCurrentPosition({
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 10000
+                    });
+
+                    handlePositionSuccess({
+                        coords: {
+                            latitude: pos.coords.latitude,
+                            longitude: pos.coords.longitude
+                        }
+                    }, manualClick);
+
+                    // Seguimiento en tiempo real
+                    if (!locationWatchId) {
+                        locationWatchId = await Geolocation.watchPosition(
+                            { enableHighAccuracy: false, maximumAge: 15000, timeout: 15000 },
+                            (p, err) => {
+                                if (p && p.coords) {
+                                    userLocation = {
+                                        lat: p.coords.latitude,
+                                        lng: p.coords.longitude
+                                    };
+                                    const municipalityChanged = updateDetectedMunicipality([userLocation.lng, userLocation.lat]);
+                                    updateUserGpsMarker();
+                                    if (municipalityChanged && document.getElementById('routesDirectorySheet')?.classList.contains('open')) renderRoutesDirectory();
+                                }
+                            }
+                        );
+                    }
+                    return;
+                } catch (nativeErr) {
+                    console.warn('Capacitor Geolocation error, probando fallback web:', nativeErr);
+                }
+            }
+
+            // Fallback Web Geolocation API estándar
+            if (!('geolocation' in navigator)) {
+                if (manualClick) showNotification('Tu dispositivo no soporta geolocalización.', 'error');
+                return;
+            }
+
+            return new Promise((resolve) => {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        handlePositionSuccess(pos, manualClick);
+                        if (!locationWatchId) {
+                            locationWatchId = navigator.geolocation.watchPosition(
+                                (p) => {
+                                    userLocation = {
+                                        lat: p.coords.latitude,
+                                        lng: p.coords.longitude
+                                    };
+                                    const municipalityChanged = updateDetectedMunicipality([userLocation.lng, userLocation.lat]);
+                                    updateUserGpsMarker();
+                                    if (municipalityChanged && document.getElementById('routesDirectorySheet')?.classList.contains('open')) renderRoutesDirectory();
+                                },
+                                null,
+                                { enableHighAccuracy: false, maximumAge: 15000, timeout: 15000 }
+                            );
+                        }
+                        resolve(pos);
+                    },
+                    (err) => {
+                        if (manualClick) {
+                            if (err.code === 1) { // PERMISSION_DENIED
+                                showNotification('Permiso de ubicación denegado. Actívalo en Ajustes.', 'error');
+                            } else if (err.code === 2) {
+                                showNotification('Ubicación GPS no disponible. Verifica que el GPS esté encendido.', 'warning');
+                            } else {
+                                showNotification('No se pudo obtener la señal GPS.', 'warning');
+                            }
+                        }
+                        const gpsBtn = document.getElementById('mapRecenterGpsBtn');
+                        if (gpsBtn) gpsBtn.classList.remove('active');
+                        resolve(null);
+                    },
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
+                );
+            });
+        }
+
+        function handlePositionSuccess(pos, manualClick = false) {
+            userLocation = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude
+            };
+            updateDetectedMunicipality([userLocation.lng, userLocation.lat]);
+            updateUserGpsMarker();
+            renderSideColumns();
+            if (document.getElementById('routesDirectorySheet')?.classList.contains('open')) {
+                renderRoutesDirectory();
+            }
+
+            if (!hasCenteredUserLocation || manualClick) {
+                hasCenteredUserLocation = true;
+                flyToCoords(userLocation.lng, userLocation.lat, 16);
+                if (manualClick) showNotification('Ubicación GPS encontrada', 'success');
+            }
+
+            const gpsBtn = document.getElementById('mapRecenterGpsBtn');
+            if (gpsBtn) {
+                setTimeout(() => gpsBtn.classList.remove('active'), 1200);
+            }
+        }
+
+        // Helper para crear elementos DOM de marcador limpios y sin lag
+        function createMarkerElement(iconClass, extraClass, title) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'custom-marker-container';
+            wrapper.title = title || '';
+            wrapper.innerHTML = `
+                <div class="marker-badge ${extraClass}">
+                    <i class="${iconClass}"></i>
+                </div>
+            `;
+            return wrapper;
+        }
+
+        function bindMarkerPopupInteractions(marker, popup) {
+            const element = marker.getElement();
+            marker.setPopup(popup);
+
+            const openPopup = event => {
+                closeAllOverlays(popup);
+                if (!popup.isOpen()) marker.togglePopup();
+            };
+
+            element.addEventListener('click', openPopup, { passive: true });
+        }
+
+        // Actualizar marcador de ubicación del usuario
+        function updateUserGpsMarker() {
+            if (!map || !userLocation) return;
+            if (!userMarker) {
+                const el = document.createElement('div');
+                el.className = 'user-gps-marker-container';
+                el.innerHTML = `
+                    <div class="user-gps-pulse pulse-1"></div>
+                    <div class="user-gps-pulse pulse-2"></div>
+                    <div class="user-gps-beacon">
+                        <div class="user-gps-core"></div>
+                    </div>
+                `;
+                el.title = 'Tu ubicación actual';
+                userMarker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+                    .setLngLat([userLocation.lng, userLocation.lat])
+                    .addTo(map);
+            } else {
+                userMarker.setLngLat([userLocation.lng, userLocation.lat]);
+            }
+        }
+
+        // Cargar trazado vectorial de la ciclovía (ciclovia.geojson)
+        function renderCicloviasLayer(data) {
+            if (!map || !data) return;
+
+            if (!map.getSource('ciclovia-source')) {
+                map.addSource('ciclovia-source', {
+                    type: 'geojson',
+                    data: data
+                });
+
+                map.addLayer({
+                    id: 'ciclovia-glow',
+                    type: 'line',
+                    source: 'ciclovia-source',
+                    layout: {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    paint: {
+                        'line-color': '#ffffff',
+                        'line-width': 10,
+                        'line-opacity': 1,
+                        'line-dasharray': [0, 2.2]
+                    }
+                });
+
+                map.addLayer({
+                    id: 'ciclovia-line',
+                    type: 'line',
+                    source: 'ciclovia-source',
+                    layout: {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    paint: {
+                        'line-color': ['coalesce', ['get', 'stroke'], '#005bfa'],
+                        'line-width': 7,
+                        'line-opacity': 1,
+                        'line-dasharray': [0, 2.2]
+                    }
+                });
+            } else {
+                map.getSource('ciclovia-source').setData(data);
+            }
+
+            const visibleEntries = data?.features ? data.features.map((feat, index) => ({ feature: feat, category: getLinealCategoryByTitle(feat?.properties?.title || ''), index })) : [];
+            visibleEntries.forEach(({ feature: feat, category, index }) => {
+                const coords = feat.geometry?.coordinates?.[0] || feat.geometry?.coordinates;
+                if (!coords || !Array.isArray(coords)) return;
+                const title = getLinealDisplayTitle(feat, `Ruta ${index + 1}`);
+                const categoryLabel = getLinealCategoryLabel(category);
+
+                const el = createMarkerElement(category === 'ciclovias' ? 'fas fa-route' : category === 'senderos' ? 'fas fa-person-hiking' : 'fas fa-tree', category, title);
+
+                const popup = createMarkerPopup({
+                    title: title,
+                    category: categoryLabel,
+                    desc: category === 'senderos' ? 'Sendero natural para caminar y bicicletear.' : category === 'ciclovias' ? 'Circuito ciclista seguro para transporte y deporte.' : 'Espacio recreativo para caminar y disfrutar del entorno.',
+                    coords: coords
+                });
+
+                const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+                    .setLngLat(coords)
+                    .addTo(map);
+
+                bindMarkerPopupInteractions(marker, popup);
+                allMarkers.push({ marker, type: category, title, coords });
+            });
+        }
+
+        function reverseLineCoordinates(feature) {
+            const geometry = feature.geometry;
+            if (!geometry || geometry.type !== 'LineString' || !Array.isArray(geometry.coordinates)) return feature;
+            return {
+                ...feature,
+                geometry: { ...geometry, coordinates: [...geometry.coordinates].reverse() }
+            };
+        }
+
+        function renderMtbLayer(features = []) {
+            if (!map) return;
+            const selectedName = normalizeRouteName(selectedMtbRouteName);
+            const visibleFeatures = selectedName ? features.filter(feature => normalizeRouteName(feature.properties?.title || '') === selectedName) : features;
+            const directedFeatures = features.map(feature => {
+                const route = feature.properties?.routeData;
+                return route?.direction === 'Derecha' ? reverseLineCoordinates(feature) : feature;
+            });
+            const directedVisibleFeatures = directedFeatures.filter(feature => !selectedName || normalizeRouteName(feature.properties?.title || '') === selectedName);
+            const data = { type: 'FeatureCollection', features: selectedName ? directedVisibleFeatures : directedFeatures };
+
+            if (!map.getSource('mtb-source')) {
+                map.addSource('mtb-source', { type: 'geojson', data });
+                map.addLayer({
+                    id: 'mtb-line',
+                    type: 'line',
+                    source: 'mtb-source',
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: { 'line-color': ['match', ['get', 'routeCategory'], 'road', '#6b7280', 'touring', '#f97316', '#dc2626'], 'line-width': 5, 'line-opacity': 0.95, 'line-dasharray': [0, 2.2] }
+                });
+                map.addLayer({
+                    id: 'mtb-arrows',
+                    type: 'symbol',
+                    source: 'mtb-source',
+                    layout: {
+                        'symbol-placement': 'line',
+                        'symbol-spacing': 90,
+                        'text-field': '➤',
+                        'text-size': 18,
+                        'text-keep-upright': false,
+                        'text-rotation-alignment': 'map'
+                    },
+                    paint: { 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 }
+                });
+            } else {
+                map.getSource('mtb-source').setData(data);
+            }
+            if (map.getLayer('mtb-line')) map.setPaintProperty('mtb-line', 'line-dasharray', selectedName ? [1, 0] : [0, 2.2]);
+            if (map.getLayer('mtb-arrows')) map.setLayoutProperty('mtb-arrows', 'visibility', selectedName && visibleFeatures.length ? 'visible' : 'none');
+        }
+
+        function renderMtbMarkers(features = []) {
+            if (!map) return;
+            features.forEach(feature => {
+                const coords = feature.geometry?.coordinates?.[0] || feature.geometry?.coordinates;
+                const route = feature.properties?.routeData;
+                const routeCategory = feature.properties?.routeCategory || 'mtb';
+                if (!coords || !route) return;
+                const collection = routeCollections[routeCategory];
+                const el = createMarkerElement(`fas ${collection?.icon || 'fa-mountain'}`, routeCategory, route.name);
+                const popup = createMarkerPopup({
+                    title: route.name,
+                    category: collection?.label || 'Ruta',
+                    desc: `${route.distance} · ${route.difficulty}`,
+                    coords: coords
+                });
+                const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+                    .setLngLat(coords)
+                    .addTo(map);
+                bindMarkerPopupInteractions(marker, popup);
+                allMarkers.push({ marker, type: routeCategory, title: route.name, coords });
+            });
+        }
+
+        // Cargar Ciclopuertos (bicis.geojson)
+        function renderCiclopuertosMarkers(features) {
+            if (!map || !features) return;
+
+            features.forEach(feature => {
+                const coords = feature.geometry?.coordinates;
+                if (!coords) return;
+                const title = feature.properties?.title || 'Ciclopuerto';
+
+                const el = createMarkerElement('fas fa-bicycle', '', title);
+
+                const popup = createMarkerPopup({
+                    title: title,
+                    category: 'Ciclopuerto Seguro',
+                    desc: 'Estacionamiento para bicicletas con anclaje seguro.',
+                    coords: coords
+                });
+
+                const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+                    .setLngLat(coords)
+                    .addTo(map);
+
+                bindMarkerPopupInteractions(marker, popup);
+                allMarkers.push({ marker, type: 'ciclopuertos', title: title, coords: coords });
+            });
+        }
+
+        // Cargar negocios de bicicletas (negocios.json)
+        function renderTalleresMarkers(features) {
+            if (!map || !features) return;
+
+            features.forEach(feature => {
+                if (feature.properties?.visible !== false) {
+                    const coords = feature.geometry?.coordinates;
+                    if (!coords) return;
+                    const props = feature.properties || {};
+                    const title = getBusinessName(props);
+
+                    const el = createMarkerElement(`fas ${getBusinessIcon(props)}`, 'workshop', title);
+
+                    const popup = createMarkerPopup({
+                        title: title,
+                        category: getBusinessType(props),
+                        desc: getBusinessDescription(props),
+                        phone: getBusinessPhone(props),
+                        social: props.redes,
+                        image: getBusinessImage(props),
+                        coords: coords
+                    });
+
+                    const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+                        .setLngLat(coords)
+                        .addTo(map);
+
+                    bindMarkerPopupInteractions(marker, popup);
+                    allMarkers.push({ marker, type: 'talleres', title, coords: coords });
+                }
+            });
+        }
+
+        // Crear popup interactivo para marcadores
+        function createMarkerPopup(item) {
+            const popup = new mapboxgl.Popup({ offset: 20, closeButton: true, closeOnClick: false });
+            
+            const imageStyle = item.image ? `background-image: url('${item.image.replace(/'/g, '%27')}')` : '';
+            const socialLinks = item.social ? Object.entries(item.social).filter(([, value]) => value).map(([network, value]) => `<a href="${value}" target="_blank" rel="noopener" style="font-size:12px;color:#005bfa;">${network}</a>`).join(' · ') : '';
+            const html = `
+                <div>
+                    <div class="popup-header-box${item.image ? ' has-image' : ''}" style="${imageStyle}">
+                        <span class="popup-category-tag">${item.category}</span>
+                        <div class="popup-header-title">${item.title}</div>
+                    </div>
+                    <div class="popup-body-box">
+                        <div class="popup-desc">${item.desc}</div>
+                        ${item.phone ? `<div style="font-size:12px; color:#0045c4; font-weight:700;"><i class="fas fa-phone"></i> ${item.phone}</div>` : ''}
+                        ${socialLinks ? `<div><i class="fas fa-share-nodes"></i> ${socialLinks}</div>` : ''}
+                        <div class="popup-actions-row">
+                            <button class="popup-btn primary" onclick="navigateToLocation(${item.coords[0]}, ${item.coords[1]})">
+                                <i class="fas fa-route"></i> Cómo llegar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            popup.setHTML(html);
+            return popup;
+        }
+
+        // Renderizar elementos de las columnas laterales (Desktop)
+        function renderSideColumns() {
+            // Parques, ciclovías y senderos
+            const parksContainer = document.getElementById('desktopParksList');
+            if (parksContainer) {
+                const linealItems = getAllLinealFeatures();
+                if (linealItems.length > 0) {
+                    parksContainer.innerHTML = linealItems.map(({ feature: p, category }) => {
+                        const coords = p.geometry?.coordinates?.[0] || p.geometry?.coordinates;
+                        if (!coords) return '';
+                        const title = getLinealDisplayTitle(p, 'Ruta');
+                        const icon = category === 'ciclovias' ? 'fa-route' : category === 'senderos' ? 'fa-person-hiking' : 'fa-tree';
+                        const label = getLinealCategoryLabel(category);
+                        return `
+                            <div class="park-card-item" onclick="flyToCoords(${coords[0]}, ${coords[1]})">
+                                <div class="card-icon-avatar park">
+                                    <i class="fas ${icon}"></i>
+                                </div>
+                                <div class="card-info">
+                                    <div class="card-title">${title}</div>
+                                    <div class="card-subtitle">${label} · Tepic / Nayarit</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    parksContainer.innerHTML = '';
+                }
+            }
+
+            // Ciclopuertos
+            const docksContainer = document.getElementById('desktopDocksList');
+            if (docksContainer && ciclopuertosData.length > 0) {
+                docksContainer.innerHTML = ciclopuertosData.map(d => {
+                    const p = d.properties || {};
+                    const coords = d.geometry?.coordinates;
+                    if (!coords) return '';
+                    return `
+                        <div class="dock-card-item" onclick="flyToCoords(${coords[0]}, ${coords[1]})">
+                            <div class="card-icon-avatar">
+                                <i class="fas fa-bicycle"></i>
+                            </div>
+                            <div class="card-info">
+                                <div class="card-title">${p.title || 'Ciclopuerto'}</div>
+                                <div class="card-subtitle">Nayarit</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Negocios
+            const workshopsContainer = document.getElementById('desktopWorkshopsList');
+            if (workshopsContainer && talleresData.length > 0) {
+                workshopsContainer.innerHTML = talleresData.map(w => {
+                    const p = w.properties || {};
+                    const coords = w.geometry?.coordinates;
+                    if (!coords) return '';
+                    return `
+                        <div class="shop-card-item" onclick="flyToCoords(${coords[0]}, ${coords[1]})">
+                            <div class="card-icon-avatar shop">
+                                <i class="fas fa-store"></i>
+                            </div>
+                            <div class="card-info">
+                                <div class="card-title">${getBusinessName(p)}</div>
+                                <div class="card-subtitle">${getBusinessLocation(p)}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        // Navegación en mapa
+        function flyToCoords(lng, lat, zoom = 16) {
+            if (map) {
+                map.flyTo({
+                    center: [lng, lat],
+                    zoom: zoom,
+                    duration: 1200,
+                    essential: true
+                });
+            }
+        }
+
+        function navigateToLocation(lng, lat) {
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=bicycling`;
+            window.open(url, '_blank');
+        }
+
+        // Renderizar opciones de autocompletado en el buscador
+        function renderAutocomplete(query, category) {
+            const listContainer = document.getElementById('searchAutocompleteList');
+            if (!listContainer) return;
+
+            const q = query.toLowerCase().trim();
+            if (!q) {
+                listContainer.classList.remove('open');
+                listContainer.innerHTML = '';
+                return;
+            }
+
+            const selectedCategories = Array.isArray(category) ? category : (category ? [category] : []);
+            const matches = [];
+
+            // Buscar en ciclopuertos
+            if (selectedCategories.length === 0 || selectedCategories.includes('ciclopuertos')) {
+                ciclopuertosData.forEach(d => {
+                    const title = d.properties?.title || 'Ciclopuerto';
+                    if (matchesSearchText(title, q)) {
+                        const coords = d.geometry.coordinates;
+                        matches.push({
+                            title: title,
+                            subtitle: '🅿️ Ciclopuerto Seguro',
+                            type: 'ciclopuertos',
+                            icon: 'fas fa-bicycle',
+                            iconClass: '',
+                            coords: coords,
+                        });
+                    }
+                });
+            }
+
+            // Buscar en parques, ciclovías, senderos y rutas MTB
+            if (selectedCategories.length === 0 || selectedCategories.some(cat => ['parques', 'ciclovias', 'senderos'].includes(cat))) {
+                getAllLinealFeatures().forEach(({ feature: p, category: itemCategory }) => {
+                    if (selectedCategories.length > 0 && !selectedCategories.includes(itemCategory)) return;
+                    const title = getLinealDisplayTitle(p, 'Ruta');
+                    if (matchesSearchText(title, q)) {
+                        const coords = p.geometry?.coordinates?.[0] || p.geometry?.coordinates;
+                        if (coords) {
+                            matches.push({
+                                title: title,
+                                subtitle: itemCategory === 'ciclovias' ? '🛣️ Ciclovía' : itemCategory === 'senderos' ? '🥾 Sendero' : '🌳 Parque',
+                                type: itemCategory,
+                                icon: itemCategory === 'ciclovias' ? 'fas fa-route' : itemCategory === 'senderos' ? 'fas fa-person-hiking' : 'fas fa-tree',
+                                iconClass: 'park',
+                                coords: coords,
+                            });
+                        }
+                    }
+                });
+            }
+
+            if (selectedCategories.length === 0 || selectedCategories.some(cat => ['mtb', 'road', 'touring'].includes(cat))) {
+                getAllMtbFeatures().forEach(({ feature, route }) => {
+                    const routeCategory = feature.properties?.routeCategory || 'mtb';
+                    if (selectedCategories.length > 0 && !selectedCategories.includes(routeCategory)) return;
+                    if (matchesSearchText(route.name, q)) {
+                        const coords = feature.geometry?.coordinates?.[0] || feature.geometry?.coordinates;
+                        if (coords) matches.push({ title: route.name, subtitle: `${routeCollections[routeCategory]?.label || 'Ruta'} · ${route.distance}`, type: routeCategory, icon: `fas ${routeCollections[routeCategory]?.icon || 'fa-mountain'}`, iconClass: routeCategory, coords });
+                    }
+                });
+            }
+
+            // Buscar en negocios de bicis
+            if (selectedCategories.length === 0 || selectedCategories.includes('talleres')) {
+                talleresData.forEach(w => {
+                    const name = getBusinessName(w.properties);
+                    const desc = getBusinessDescription(w.properties);
+                    const zone = getBusinessLocation(w.properties);
+                    const shouldMatch = matchesSearchText(name, q) || matchesSearchText(zone, q) || matchesSearchText(desc, q);
+                    if (shouldMatch) {
+                        const coords = w.geometry.coordinates;
+                        matches.push({
+                            title: name,
+                            subtitle: `${getBusinessType(w.properties)} · ${zone}`,
+                            type: 'talleres',
+                            icon: 'fas fa-store',
+                            iconClass: 'workshop',
+                            coords: coords,
+                        });
+                    }
+                });
+            }
+
+            if (matches.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 12px;">
+                        <i class="fas fa-search" style="margin-bottom: 4px; display: block; font-size: 16px;"></i>
+                        No se encontraron resultados para "${query}"
+                    </div>
+                `;
+                listContainer.classList.add('open');
+                return;
+            }
+
+            const topMatches = matches.slice(0, 6);
+
+            listContainer.innerHTML = topMatches.map(item => {
+                const regex = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                const highlightedTitle = item.title.replace(regex, '<mark>$1</mark>');
+
+                return `
+                    <div class="autocomplete-item" onclick="selectAutocompleteItem('${item.title.replace(/'/g, "\\'")}', ${item.coords[0]}, ${item.coords[1]})">
+                        <div class="autocomplete-icon-badge ${item.iconClass}">
+                            <i class="${item.icon}"></i>
+                        </div>
+                        <div class="autocomplete-info">
+                            <div class="autocomplete-title">${highlightedTitle}</div>
+                            <div class="autocomplete-sub">
+                                <span>${item.subtitle}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            listContainer.classList.add('open');
+        }
+
+        // Seleccionar elemento del autocompletado
+        function selectAutocompleteItem(title, lng, lat) {
+            const searchInput = document.getElementById('mapSearchInput');
+            const clearBtn = document.getElementById('searchClearBtn');
+            const listContainer = document.getElementById('searchAutocompleteList');
+
+            if (searchInput) searchInput.value = title;
+            if (clearBtn) clearBtn.style.display = 'flex';
+            if (listContainer) listContainer.classList.remove('open');
+
+            const routeEntry = getAllMtbFeatures().find(({ route }) => normalizeRouteName(route?.name) === normalizeRouteName(title));
+            if (routeEntry) {
+                selectMtbRoute(routeEntry.route.name, lng, lat);
+                return;
+            }
+
+            const normalizedTitle = normalizeRouteName(title);
+            const ciclopuerto = ciclopuertosData.find(feature => normalizeRouteName(feature.properties?.title || 'Ciclopuerto') === normalizedTitle);
+            const taller = talleresData.find(feature => normalizeRouteName(getBusinessName(feature.properties)) === normalizedTitle);
+            const linealEntry = getAllLinealFeatures().find(({ feature }) => normalizeRouteName(getLinealDisplayTitle(feature, 'Ruta')) === normalizedTitle);
+            selectedSearchSelection = ciclopuerto ? { type: 'ciclopuertos', title, feature: ciclopuerto }
+                : taller ? { type: 'talleres', title, feature: taller }
+                : linealEntry ? { type: linealEntry.category, title, feature: linealEntry.feature }
+                : null;
+            selectedMtbRouteName = '';
+            activeChipFilters.clear();
+            document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+            updateFilterHint();
+            filterMarkers(title.toLowerCase().trim(), [], true);
+            flyToCoords(lng, lat, 17);
+
+            // Abrir el popup del marcador seleccionado
+            const found = allMarkers.find(m => m.title.toLowerCase() === title.toLowerCase());
+            if (found && found.marker) {
+                const popup = found.marker.getPopup();
+                if (popup && !popup.isOpen()) {
+                    found.marker.togglePopup();
+                }
+            }
+        }
+
+        // Estado de filtro de chips
+        let activeChipFilters = new Set();
+        let selectedSearchSelection = null;
+
+        function updateFilterHint() {
+            const hint = document.getElementById('filterHintBanner');
+            if (hint) {
+                hint.classList.toggle('hidden', activeChipFilters.size > 0);
+            }
+        }
+
+        function setActiveChip(filter) {
+            if (!filter) {
+                activeChipFilters.clear();
+            } else if (activeChipFilters.has(filter)) {
+                activeChipFilters.delete(filter);
+            } else {
+                activeChipFilters.add(filter);
+            }
+            if (activeChipFilters.size === 0) selectedMtbRouteName = '';
+            document.querySelectorAll('.filter-chip').forEach(chip => {
+                chip.classList.toggle('active', activeChipFilters.has(chip.dataset.filter));
+            });
+            updateFilterHint();
+        }
+
+        function selectMtbRoute(routeName, lng, lat) {
+            closeSheet('routesDirectorySheet');
+            selectedMtbRouteName = routeName;
+            const routeEntry = getAllMtbFeatures().find(({ route }) => normalizeRouteName(route?.name) === normalizeRouteName(routeName));
+            selectedSearchSelection = routeEntry?.feature ? {
+                type: 'route',
+                title: routeName,
+                feature: routeEntry.feature
+            } : null;
+            activeChipFilters.clear();
+            document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+            updateFilterHint();
+            filterMarkers(routeName, [], true);
+            flyToCoords(lng, lat, 15);
+            const routeCategory = routeEntry?.feature?.properties?.routeCategory || 'mtb';
+            const found = allMarkers.find(marker => marker.type === routeCategory && normalizeRouteName(marker.title) === normalizeRouteName(routeName));
+            if (found?.marker) found.marker.togglePopup();
+        }
+
+        // Filtro y eventos
+        function setupEventListeners() {
+            const searchInput = document.getElementById('mapSearchInput');
+            const searchClearBtn = document.getElementById('searchClearBtn');
+            const autocompleteList = document.getElementById('searchAutocompleteList');
+
+            // Chips de categoría
+            const chipsRow = document.getElementById('filterChipsRow');
+            if (chipsRow) {
+                chipsRow.addEventListener('click', (e) => {
+                    const chip = e.target.closest('.filter-chip');
+                    if (!chip) return;
+                    const clickedFilter = chip.dataset.filter;
+                    setActiveChip(clickedFilter);
+                    if (searchInput) searchInput.value = '';
+                    if (searchClearBtn) searchClearBtn.style.display = 'none';
+                    if (autocompleteList) {
+                        autocompleteList.classList.remove('open');
+                        autocompleteList.innerHTML = '';
+                    }
+                    const activeFilters = Array.from(activeChipFilters);
+                    filterMarkers('', activeFilters);
+                });
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    const query = e.target.value;
+                    if (query.trim().length > 0) {
+                        if (searchClearBtn) searchClearBtn.style.display = 'flex';
+                        renderAutocomplete(query, Array.from(activeChipFilters));
+                    } else {
+                        if (searchClearBtn) searchClearBtn.style.display = 'none';
+                        if (autocompleteList) autocompleteList.classList.remove('open');
+                    }
+                    filterMarkers(query.toLowerCase().trim(), Array.from(activeChipFilters));
+                });
+
+                searchInput.addEventListener('focus', () => {
+                    const query = searchInput.value;
+                    if (query.trim().length > 0) {
+                        renderAutocomplete(query, Array.from(activeChipFilters));
+                    }
+                });
+            }
+
+            if (searchClearBtn) {
+                searchClearBtn.addEventListener('click', () => {
+                    if (searchInput) {
+                        searchInput.value = '';
+                        searchInput.focus();
+                    }
+                    searchClearBtn.style.display = 'none';
+                    if (autocompleteList) autocompleteList.classList.remove('open');
+                    filterMarkers('', Array.from(activeChipFilters));
+                });
+            }
+
+            // Cerrar autocompletado al tocar fuera de la tarjeta
+            document.addEventListener('click', (e) => {
+                const searchCard = document.getElementById('floatingSearchCard');
+                if (searchCard && !searchCard.contains(e.target) && autocompleteList) {
+                    autocompleteList.classList.remove('open');
+                }
+            });
+
+
+            // Botón GPS de centrar ubicación en barra de búsqueda
+            const gpsBtn = document.getElementById('searchGpsBtn');
+            if (gpsBtn) {
+                gpsBtn.addEventListener('click', () => {
+                    requestUserLocation(true);
+                });
+            }
+
+            // Toggle FAB Menu
+            const fabContainer = document.getElementById('fabCornerContainer');
+            const fabMainBtn = document.getElementById('fabMainBtn');
+            if (fabMainBtn && fabContainer) {
+                fabMainBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    fabOpen = !fabOpen;
+                    if (fabOpen) {
+                        fabContainer.classList.add('open');
+                    } else {
+                        fabContainer.classList.remove('open');
+                    }
+                });
+            }
+
+            // Cerrar FAB al hacer click fuera
+            document.addEventListener('click', (e) => {
+                if (fabOpen && fabContainer && !fabContainer.contains(e.target)) {
+                    fabOpen = false;
+                    fabContainer.classList.remove('open');
+                }
+            });
+
+            // Acciones del FAB
+            document.getElementById('fabActionLocation')?.addEventListener('click', () => {
+                requestUserLocation(true);
+                toggleFabMenu(false);
+            });
+
+            document.getElementById('fabActionRoutes')?.addEventListener('click', () => {
+                openRoutesDirectory();
+                toggleFabMenu(false);
+            });
+
+            document.getElementById('fabActionList')?.addEventListener('click', () => {
+                activeDirectoryTab = 'all';
+                openStationsDirectory();
+                toggleFabMenu(false);
+            });
+
+            document.getElementById('fabActionBusinesses')?.addEventListener('click', () => {
+                openBusinessesDirectory();
+                toggleFabMenu(false);
+            });
+
+            document.getElementById('fabActionTips')?.addEventListener('click', () => {
+                openModal('helpTipsModal');
+                toggleFabMenu(false);
+            });
+
+        }
+
+        function toggleFabMenu(open) {
+            const fabContainer = document.getElementById('fabCornerContainer');
+            if (!fabContainer) return;
+            fabOpen = open;
+            if (fabOpen) {
+                fabContainer.classList.add('open');
+            } else {
+                fabContainer.classList.remove('open');
+            }
+        }
+
+        function setupTipsTabs() {
+            const tabs = document.querySelectorAll('.tips-tab-btn');
+            const panels = document.querySelectorAll('.tips-tab-panel');
+
+            tabs.forEach((tab) => {
+                tab.addEventListener('click', () => {
+                    const target = tab.dataset.tipTab;
+
+                    tabs.forEach((btn) => {
+                        const isActive = btn === tab;
+                        btn.classList.toggle('active', isActive);
+                        btn.setAttribute('aria-selected', String(isActive));
+                    });
+
+                    panels.forEach((panel) => {
+                        const isActive = panel.dataset.tipPanel === target;
+                        panel.classList.toggle('active', isActive);
+                    });
+                });
+            });
+        }
+
+        function rebuildVisibleMarkers(selectedCategories = []) {
+            allMarkers.forEach(({ marker }) => {
+                if (marker) marker.remove();
+            });
+            allMarkers = [];
+
+            if (!selectedCategories.length) return;
+
+            const linealCategories = selectedCategories.filter(cat => ['parques', 'ciclovias', 'senderos'].includes(cat));
+            const mtbCategories = selectedCategories.filter(cat => ['mtb', 'road', 'touring'].includes(cat));
+
+            if (linealCategories.length > 0) {
+                const linealFeatures = getAllLinealFeatures()
+                    .filter(({ category: itemCategory }) => linealCategories.includes(itemCategory))
+                    .map(({ feature }) => feature);
+                renderCicloviasLayer({ type: 'FeatureCollection', features: linealFeatures });
+            }
+
+            if (mtbCategories.length > 0) {
+                const routeFeatures = getAllMtbFeatures()
+                    .filter(({ feature }) => mtbCategories.includes(feature.properties?.routeCategory))
+                    .map(({ feature }) => feature);
+                renderMtbMarkers(routeFeatures);
+            }
+
+            if (selectedCategories.includes('ciclopuertos')) {
+                renderCiclopuertosMarkers(ciclopuertosData);
+            }
+
+            if (selectedCategories.includes('talleres')) {
+                renderTalleresMarkers(talleresData);
+            }
+        }
+
+        // Filtrar marcadores en el mapa
+        function filterMarkers(query, category, preserveSelection = false) {
+            const selectedCategories = Array.isArray(category) ? category : (category ? [category] : []);
+            const hasActiveFilter = selectedCategories.length > 0;
+
+            if (!preserveSelection) {
+                selectedSearchSelection = null;
+                selectedMtbRouteName = '';
+            }
+
+            rebuildVisibleMarkers(selectedCategories);
+
+            if (map && map.getSource('ciclovia-source')) {
+                const linealCategories = selectedCategories.filter(cat => ['parques', 'ciclovias', 'senderos'].includes(cat));
+                const linealData = linealCategories.length > 0
+                    ? {
+                        type: 'FeatureCollection',
+                        features: getAllLinealFeatures()
+                            .filter(({ category: itemCategory }) => linealCategories.includes(itemCategory))
+                            .map(({ feature }) => feature)
+                    }
+                    : { type: 'FeatureCollection', features: [] };
+                map.getSource('ciclovia-source').setData(linealData);
+            }
+
+            const mtbCategories = selectedCategories.filter(cat => ['mtb', 'road', 'touring'].includes(cat));
+            const showMtb = mtbCategories.length > 0;
+            if (map) {
+                if (showMtb) {
+                    const routeFeatures = getAllMtbFeatures()
+                        .filter(({ feature }) => mtbCategories.includes(feature.properties?.routeCategory))
+                        .filter(({ route }) => !query || matchesSearchText(`${route?.name} ${route?.distance} ${route?.difficulty}`, query))
+                        .map(entry => entry.feature);
+                    renderMtbLayer(routeFeatures);
+                } else if (map.getSource('mtb-source')) {
+                    map.getSource('mtb-source').setData({ type: 'FeatureCollection', features: [] });
+                }
+            }
+
+            if (preserveSelection && selectedSearchSelection?.feature) {
+                const selectedFeature = selectedSearchSelection.feature;
+                if (selectedSearchSelection.type === 'route') {
+                    renderMtbLayer([selectedFeature]);
+                    renderMtbMarkers([selectedFeature]);
+                } else if (['parques', 'ciclovias', 'senderos'].includes(selectedSearchSelection.type)) {
+                    renderCicloviasLayer({ type: 'FeatureCollection', features: [selectedFeature] });
+                } else if (selectedSearchSelection.type === 'ciclopuertos') {
+                    renderCiclopuertosMarkers([selectedFeature]);
+                } else if (selectedSearchSelection.type === 'talleres') {
+                    renderTalleresMarkers([selectedFeature]);
+                }
+            }
+
+            allMarkers.forEach(m => {
+                const isSelected = preserveSelection && selectedSearchSelection
+                    && normalizeRouteName(m.title) === normalizeRouteName(selectedSearchSelection.title);
+                const matchesCat = isSelected || !hasActiveFilter || selectedCategories.includes(m.type);
+                const matchesQuery = !query || matchesSearchText(m.title, query);
+
+                if (matchesCat && matchesQuery) {
+                    m.marker.getElement().style.display = 'block';
+                } else {
+                    m.marker.getElement().style.display = 'none';
+                }
+            });
+
+            const showRoute = selectedCategories.some(cat => ['parques', 'ciclovias', 'senderos'].includes(cat))
+                || (preserveSelection && ['parques', 'ciclovias', 'senderos'].includes(selectedSearchSelection?.type));
+            const cicloviaLayers = ['ciclovia-glow', 'ciclovia-line'];
+            cicloviaLayers.forEach(layerId => {
+                if (map && map.getLayer(layerId)) {
+                    map.setLayoutProperty(layerId, 'visibility', showRoute ? 'visible' : 'none');
+                }
+            });
+            const showSelectedRoute = preserveSelection && selectedSearchSelection?.type === 'route';
+            ['mtb-line', 'mtb-arrows'].forEach(layerId => {
+                if (map && map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', showMtb || showSelectedRoute ? 'visible' : 'none');
+            });
+
+            if (!hasActiveFilter && !preserveSelection) {
+                allMarkers.forEach(({ marker }) => {
+                    if (marker?.getElement()) marker.getElement().style.display = 'none';
+                });
+            }
+        }
+
+        let activeDirectoryTab = 'all';
+        let directorySearchQuery = '';
+        let activeRouteCategory = 'mtb';
+
+        function getDifficultyClass(difficulty = '') {
+            const normalized = normalizeSearchText(difficulty);
+            if (normalized.includes('muy dificil')) return 'difficulty-very-hard';
+            if (normalized.includes('dificil')) return 'difficulty-hard';
+            if (normalized.includes('moderado')) return 'difficulty-moderate';
+            return 'difficulty-easy';
+        }
+
+        function openRoutesDirectory() {
+            activeRouteCategory = 'mtb';
+            document.querySelectorAll('.route-category-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.routeCategory === activeRouteCategory);
+            });
+            renderRoutesDirectory();
+            closeAllOverlays();
+            document.getElementById('routesDirectorySheet')?.classList.add('open');
+        }
+
+        function setupRoutesDirectoryTabs() {
+            const tabs = document.getElementById('routeCategoryTabs');
+            if (!tabs || tabs.dataset.initialized) return;
+            tabs.dataset.initialized = 'true';
+            tabs.querySelectorAll('.route-category-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    activeRouteCategory = tab.dataset.routeCategory;
+                    tabs.querySelectorAll('.route-category-tab').forEach(item => item.classList.toggle('active', item === tab));
+                    renderRoutesDirectory();
+                });
+            });
+        }
+
+        function renderRoutesDirectory() {
+            const container = document.getElementById('routesSheetContent');
+            if (!container) return;
+            const collection = routeCollections[activeRouteCategory];
+            if (!collection || collection.routes.length === 0) {
+                container.innerHTML = '<div style="padding: 48px 20px; text-align: center; color: #64748b;"><i class="fas fa-route" style="font-size: 28px; margin-bottom: 12px;"></i><h4 style="font-size: 15px; color: #334155; margin-bottom: 5px;">Aún no hay rutas registradas</h4><p style="font-size: 12px;">Esta modalidad estará disponible próximamente.</p></div>';
+                return;
+            }
+            const featuresByName = new Map(collection.features.map(feature => [normalizeRouteName(feature.properties?.title || ''), feature]));
+            const sortedRoutes = [...collection.routes].sort((firstRoute, secondRoute) => {
+                if (!currentMunicipality) return 0;
+                const current = normalizeSearchText(currentMunicipality);
+                const firstMatches = normalizeSearchText(firstRoute.municipality) === current;
+                const secondMatches = normalizeSearchText(secondRoute.municipality) === current;
+                return Number(secondMatches) - Number(firstMatches);
+            });
+            container.innerHTML = `<div class="directory-cards-container">${sortedRoutes.map(route => {
+                const feature = featuresByName.get(normalizeRouteName(route.name));
+                const coords = feature?.geometry?.coordinates?.[0] || feature?.geometry?.coordinates;
+                if (!coords) return '';
+                const difficultyClass = getDifficultyClass(route.difficulty);
+                const isNearby = currentMunicipality && normalizeSearchText(route.municipality) === normalizeSearchText(currentMunicipality);
+                return `<div class="directory-item-card" onclick="selectMtbRoute('${route.name.replace(/'/g, "\\'")}', ${coords[0]}, ${coords[1]})">
+                    <div class="directory-item-avatar ${activeRouteCategory}"><i class="fas ${collection.icon}"></i></div>
+                    <div class="directory-item-info">
+                        <div class="directory-item-title">${route.name}</div>
+                        <div class="directory-item-meta"><span class="difficulty-badge ${difficultyClass}"><i class="fas fa-gauge-high"></i> ${route.difficulty}</span><span class="directory-item-distance">${route.distance}</span>${isNearby ? '<span class="nearby-route-badge"><i class="fas fa-location-dot"></i> Cerca de ti</span>' : ''}</div>
+                    </div>
+                    <div class="directory-item-actions"><button class="directory-action-btn" title="Ver en el mapa"><i class="fas fa-chevron-right"></i></button></div>
+                </div>`;
+            }).join('')}</div>`;
+        }
+
+        let activeBusinessTab = 'negocios';
+        let businessSearchQuery = '';
+
+        function openBusinessesDirectory() {
+            activeBusinessTab = 'negocios';
+            businessSearchQuery = '';
+            const searchInput = document.getElementById('businessSearchInput');
+            if (searchInput) searchInput.value = '';
+            document.querySelectorAll('#businessTabsRow .dir-tab-btn').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.businessTab === activeBusinessTab);
+            });
+            setupBusinessDirectoryTabs();
+            renderBusinessDirectory();
+            closeAllOverlays();
+            document.getElementById('businessDirectorySheet')?.classList.add('open');
+        }
+
+        function setupBusinessDirectoryTabs() {
+            const tabsRow = document.getElementById('businessTabsRow');
+            if (tabsRow && !tabsRow.dataset.initialized) {
+                tabsRow.dataset.initialized = 'true';
+                tabsRow.querySelectorAll('.dir-tab-btn').forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        activeBusinessTab = tab.dataset.businessTab;
+                        tabsRow.querySelectorAll('.dir-tab-btn').forEach(item => item.classList.toggle('active', item === tab));
+                        renderBusinessDirectory();
+                    });
+                });
+            }
+
+            const searchInput = document.getElementById('businessSearchInput');
+            if (searchInput && !searchInput.dataset.initialized) {
+                searchInput.dataset.initialized = 'true';
+                searchInput.addEventListener('input', event => {
+                    businessSearchQuery = event.target.value.toLowerCase().trim();
+                    renderBusinessDirectory();
+                });
+            }
+        }
+
+        function renderBusinessDirectory() {
+            const container = document.getElementById('businessSheetContent');
+            if (!container) return;
+            const query = businessSearchQuery;
+            const items = talleresData.filter(feature => {
+                const properties = feature.properties || {};
+                const searchable = `${getBusinessName(properties)} ${getBusinessLocation(properties)} ${getBusinessType(properties)} ${getBusinessDescription(properties)}`.toLowerCase();
+                return matchesBusinessTab(properties, activeBusinessTab) && (!query || searchable.includes(query));
+            });
+            const count = document.getElementById('businessCountAll');
+            if (count) count.textContent = `(${talleresData.length})`;
+
+            if (!items.length) {
+                container.innerHTML = '<div style="padding: 48px 20px; text-align: center; color: #64748b;"><i class="fas fa-store" style="font-size: 28px; margin-bottom: 12px;"></i><h4 style="font-size: 15px; color: #334155; margin-bottom: 5px;">No se encontraron negocios</h4><p style="font-size: 12px;">Prueba otra categoría o término.</p></div>';
+                return;
+            }
+
+            container.innerHTML = `<div class="directory-cards-container">${items.map(feature => {
+                const properties = feature.properties || {};
+                const coords = feature.geometry?.coordinates;
+                if (!coords) return '';
+                const title = getBusinessName(properties);
+                const phone = getBusinessPhone(properties);
+                const image = getBusinessImage(properties);
+                const website = getBusinessWebsite(properties);
+                const socialLinks = properties.redes || {};
+                const socialUrl = socialLinks.instagram || socialLinks.facebook || '';
+                const imageStyle = image ? `style="background-image: url('${image.replace(/'/g, '%27')}'); background-size: cover; background-position: center; color: #ffffff;"` : '';
+                return `<div class="directory-item-card" onclick="selectStationFromDirectory(${coords[0]}, ${coords[1]}, '${title.replace(/'/g, "\\'")}')">
+                    <div class="directory-item-avatar workshop" ${imageStyle}><i class="fas ${getBusinessIcon(properties)}"></i></div>
+                    <div class="directory-item-info">
+                        <div class="directory-item-title">${title}</div>
+                        <div class="directory-item-meta"><span class="directory-badge-type workshop">${getBusinessType(properties)}</span></div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 1px;">${getBusinessLocation(properties)} · ${getBusinessDescription(properties)}</div>
+                    </div>
+                    <div class="directory-item-actions">${phone ? `<a href="tel:${phone}" class="directory-action-btn call" onclick="event.stopPropagation();" title="Llamar"><i class="fas fa-phone"></i></a>` : ''}${website ? `<a href="${website}" target="_blank" rel="noopener" class="directory-action-btn" onclick="event.stopPropagation();" title="Abrir página web"><i class="fas fa-globe"></i></a>` : ''}${socialUrl ? `<a href="${socialUrl}" target="_blank" rel="noopener" class="directory-action-btn" onclick="event.stopPropagation();" title="Abrir redes sociales"><i class="fas fa-share-nodes"></i></a>` : ''}<button class="directory-action-btn" title="Ver en el mapa"><i class="fas fa-chevron-right"></i></button></div>
+                </div>`;
+            }).join('')}</div>`;
+        }
+
+        // Directorio de estaciones (Bottom Sheet)
+        function openStationsDirectory() {
+            // Actualizar contadores de pestañas
+            const totalRouteCount = Object.values(routeCollections).reduce((total, collection) => total + collection.routes.length, 0);
+            const totalCount = ciclopuertosData.length + parquesLinealesData.length + cicloviasLinealesData.length + totalRouteCount;
+            const countAll = document.getElementById('dirCountAll');
+            const countCiclopuertos = document.getElementById('dirCountCiclopuertos');
+            const countParques = document.getElementById('dirCountParques');
+            const countCiclovias = document.getElementById('dirCountCiclovias');
+            const countMtb = document.getElementById('dirCountMtb');
+
+            if (countAll) countAll.textContent = `(${totalCount})`;
+            if (countCiclopuertos) countCiclopuertos.textContent = `(${ciclopuertosData.length})`;
+            if (countParques) countParques.textContent = `(${parquesLinealesData.length})`;
+            if (countCiclovias) countCiclovias.textContent = `(${cicloviasLinealesData.length})`;
+            if (countMtb) countMtb.textContent = `(${totalRouteCount})`;
+
+            // Resetear búsqueda si está abierta
+            const searchInput = document.getElementById('dirSearchInput');
+            if (searchInput) searchInput.value = '';
+            directorySearchQuery = '';
+
+            // Configurar pestañas y búsqueda
+            setupDirectoryTabs();
+            document.querySelectorAll('#dirTabsRow .dir-tab-btn').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === activeDirectoryTab);
+            });
+            const directoryTitle = document.getElementById('sheetDirectoryTitle');
+            const directorySubtitle = document.getElementById('sheetDirectorySubtitle');
+            if (directoryTitle) directoryTitle.textContent = 'Explorar Estaciones';
+            if (directorySubtitle) directorySubtitle.textContent = 'Ciclopuertos, ciclovías y negocios en Nayarit';
+
+            // Renderizar la lista
+            renderStationsDirectory();
+
+            closeAllOverlays();
+            document.getElementById('stationsDirectorySheet').classList.add('open');
+        }
+
+        function setupDirectoryTabs() {
+            const tabsRow = document.getElementById('dirTabsRow');
+            if (tabsRow && !tabsRow.dataset.initialized) {
+                tabsRow.dataset.initialized = 'true';
+                tabsRow.querySelectorAll('.dir-tab-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        tabsRow.querySelectorAll('.dir-tab-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        activeDirectoryTab = btn.dataset.tab;
+                        renderStationsDirectory();
+                    });
+                });
+            }
+
+            const searchInput = document.getElementById('dirSearchInput');
+            if (searchInput && !searchInput.dataset.initialized) {
+                searchInput.dataset.initialized = 'true';
+                searchInput.addEventListener('input', (e) => {
+                    directorySearchQuery = e.target.value.toLowerCase().trim();
+                    renderStationsDirectory();
+                });
+            }
+        }
+
+        function renderStationsDirectory() {
+            const container = document.getElementById('stationsSheetContent');
+            if (!container) return;
+
+            const items = [];
+            const q = directorySearchQuery;
+
+            // Ciclopuertos
+            if (activeDirectoryTab === 'all' || activeDirectoryTab === 'ciclopuertos') {
+                ciclopuertosData.forEach(d => {
+                    const p = d.properties || {};
+                    const title = p.title || 'Ciclopuerto Seguro';
+                    const coords = d.geometry?.coordinates;
+                    if (!coords) return;
+                    const desc = p.description || 'Estacionamiento con anclaje seguro';
+                    if (!q || title.toLowerCase().includes(q) || desc.toLowerCase().includes(q)) {
+                        items.push({
+                            title: title,
+                            type: 'ciclopuerto',
+                            typeLabel: 'Ciclopuerto',
+                            badgeClass: 'ciclopuerto',
+                            avatarClass: '',
+                            icon: 'fa-bicycle',
+                            subtitle: 'Nayarit · Estacionamiento seguro',
+                            coords: coords
+                        });
+                    }
+                });
+            }
+
+            // Parques, ciclovías y senderos
+            if (activeDirectoryTab === 'all' || ['parques', 'ciclovias', 'senderos'].includes(activeDirectoryTab)) {
+                getAllLinealFeatures().forEach(({ feature: p, category }) => {
+                    const coords = p.geometry?.coordinates?.[0] || p.geometry?.coordinates;
+                    if (!coords) return;
+                    const title = getLinealDisplayTitle(p, 'Ruta');
+                    const desc = category === 'senderos' ? 'Sendero para caminar y bike' : category === 'ciclovias' ? 'Circuito ciclista seguro y protegido' : 'Espacio recreativo y de esparcimiento';
+                    if (activeDirectoryTab !== 'all' && category !== activeDirectoryTab) return;
+                    if (!q || title.toLowerCase().includes(q) || desc.toLowerCase().includes(q)) {
+                        items.push({
+                            title: title,
+                            type: category,
+                            typeLabel: getLinealCategoryLabel(category),
+                            badgeClass: 'park',
+                            avatarClass: 'park',
+                            icon: category === 'ciclovias' ? 'fa-route' : category === 'senderos' ? 'fa-person-hiking' : 'fa-tree',
+                            subtitle: category === 'senderos' ? 'Tepic / Xalisco · Sendero natural' : category === 'ciclovias' ? 'Tepic / Xalisco · Circuito ciclista' : 'Tepic / Xalisco · Espacio recreativo',
+                            coords: coords
+                        });
+                    }
+                });
+            }
+
+            // Rutas descritas en Carretera.json, Cicloturismo.json y Montaña.json
+            if (activeDirectoryTab === 'all' || ['mtb', 'road', 'touring'].includes(activeDirectoryTab)) {
+                getAllMtbFeatures().forEach(({ feature, route }) => {
+                    const coords = feature.geometry?.coordinates?.[0] || feature.geometry?.coordinates;
+                    if (!coords) return;
+                    if (activeDirectoryTab !== 'all' && feature.properties?.routeCategory !== activeDirectoryTab) return;
+                    const searchable = `${route.name} ${route.distance} ${route.difficulty} ${route.direction}`;
+                    if (!q || normalizeSearchText(searchable).includes(normalizeSearchText(q))) {
+                        items.push({
+                            title: route.name,
+                            type: feature.properties?.routeCategory || 'mtb',
+                            typeLabel: routeCollections[feature.properties?.routeCategory]?.label || 'Ruta',
+                            badgeClass: feature.properties?.routeCategory || 'mtb',
+                            avatarClass: feature.properties?.routeCategory || 'mtb',
+                            icon: routeCollections[feature.properties?.routeCategory]?.icon || 'fa-mountain',
+                            subtitle: `${routeCollections[feature.properties?.routeCategory]?.label || 'Ruta'} · Nayarit`,
+                            mtbDetails: { distance: route.distance, difficulty: route.difficulty },
+                            coords: coords
+                        });
+                    }
+                });
+            }
+
+            if (items.length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 48px 20px; text-align: center; color: #94a3b8;">
+                        <div style="width: 56px; height: 56px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-size: 22px; color: #64748b;">
+                            <i class="fas fa-magnifying-glass"></i>
+                        </div>
+                        <h4 style="font-size: 15px; font-weight: 800; color: #334155; margin-bottom: 4px;">No se encontraron estaciones</h4>
+                        <p style="font-size: 12px;">Intenta con otro término o cambia de categoría.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="directory-cards-container">
+                    ${items.map(item => {
+                        return `
+                            <div class="directory-item-card" onclick="${['mtb', 'road', 'touring'].includes(item.type) ? `selectMtbRoute('${item.title.replace(/'/g, "\\'")}', ${item.coords[0]}, ${item.coords[1]})` : `selectStationFromDirectory(${item.coords[0]}, ${item.coords[1]}, '${item.title.replace(/'/g, "\\'")}')`}">
+                                <div class="directory-item-avatar ${item.avatarClass}">
+                                    <i class="fas ${item.icon}"></i>
+                                </div>
+                                <div class="directory-item-info">
+                                    <div class="directory-item-title">${item.title}</div>
+                                    <div class="directory-item-meta">
+                                        <span class="directory-badge-type ${item.badgeClass}">${item.typeLabel}</span>
+                                    </div>
+                                    <div style="font-size: 11px; color: #64748b; margin-top: 1px;">${item.subtitle}</div>
+                                    ${item.mtbDetails ? `
+                                        <div class="directory-mtb-details">
+                                            <span><i class="fas fa-road"></i> ${item.mtbDetails.distance}</span>
+                                            <span><i class="fas fa-gauge-high"></i> ${item.mtbDetails.difficulty}</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="directory-item-actions">
+                                    ${item.phone ? `
+                                        <a href="tel:${item.phone}" class="directory-action-btn call" onclick="event.stopPropagation();" title="Llamar al taller">
+                                            <i class="fas fa-phone"></i>
+                                        </a>
+                                    ` : ''}
+                                    <button class="directory-action-btn" title="Ver en el mapa">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function selectStationFromDirectory(lng, lat, title) {
+            closeSheet('stationsDirectorySheet');
+            closeSheet('businessDirectorySheet');
+
+            const business = talleresData.find(feature => normalizeRouteName(getBusinessName(feature.properties)) === normalizeRouteName(title));
+            if (business) {
+                selectedMtbRouteName = '';
+                selectedSearchSelection = { type: 'talleres', title, feature: business };
+                filterMarkers(title.toLowerCase().trim(), [], true);
+            }
+
+            flyToCoords(lng, lat, 17);
+
+            // Abrir popup correspondiente
+            const found = allMarkers.find(m => m.title.toLowerCase() === title.toLowerCase());
+            if (found && found.marker) {
+                const popup = found.marker.getPopup();
+                if (popup && !popup.isOpen()) {
+                    found.marker.togglePopup();
+                }
+            }
+        }
+
+        // ============================================================
+        // SISTEMA DE ALERTAS TOAST PREMIUM
+        // ============================================================
+        let toastContainer = null;
+
+        function getToastContainer() {
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toastContainer';
+                document.body.appendChild(toastContainer);
+            }
+            return toastContainer;
+        }
+
+        const TOAST_ICONS = {
+            success: 'fa-circle-check',
+            error:   'fa-circle-xmark',
+            warning: 'fa-triangle-exclamation',
+            info:    'fa-circle-info'
+        };
+
+        const TOAST_TITLES = {
+            success: 'Listo',
+            error:   'Error',
+            warning: 'Atención',
+            info:    'Información'
+        };
+
+        function showNotification(msg, type = 'info', duration = 3500) {
+            const container = getToastContainer();
+            const icon = TOAST_ICONS[type] || TOAST_ICONS.info;
+            const title = TOAST_TITLES[type] || TOAST_TITLES.info;
+
+            const toast = document.createElement('div');
+            toast.className = `toast-item toast-${type}`;
+
+            toast.innerHTML = `
+                <div class="toast-body">
+                    <div class="toast-icon-wrap"><i class="fas ${icon}"></i></div>
+                    <div class="toast-text-block">
+                        <div class="toast-title">${title}</div>
+                        <div class="toast-msg">${msg}</div>
+                    </div>
+                    <button class="toast-close" aria-label="Cerrar"><i class="fas fa-xmark"></i></button>
+                </div>
+                <div class="toast-progress-bar">
+                    <div class="toast-progress-bar-inner" style="transition: width ${duration}ms linear;"></div>
+                </div>
+            `;
+
+            // Botón cerrar
+            toast.querySelector('.toast-close').addEventListener('click', () => dismissToast(toast));
+
+            container.appendChild(toast);
+
+            // Animar barra de progreso
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    const bar = toast.querySelector('.toast-progress-bar-inner');
+                    if (bar) bar.style.width = '0%';
+                });
+            });
+
+            // Auto-dismiss
+            const timer = setTimeout(() => dismissToast(toast), duration);
+            toast._timer = timer;
+
+            return toast;
+        }
+
+        function dismissToast(toast) {
+            clearTimeout(toast._timer);
+            toast.classList.add('toast-exit');
+            setTimeout(() => toast.remove(), 380);
+        }
+
+        // Atajos tipados para uso en la app
+        function showSuccess(msg, duration) { return showNotification(msg, 'success', duration); }
+        function showError(msg, duration)   { return showNotification(msg, 'error',   duration); }
+        function showWarning(msg, duration) { return showNotification(msg, 'warning', duration); }
+        function showInfo(msg, duration)    { return showNotification(msg, 'info',    duration); }
+
+        // Modales & Sheets Helpers
+        function closeAllOverlays(exceptPopup = null) {
+            document.querySelectorAll('.center-app-modal.open, .bottom-sheet-modal.open').forEach(element => {
+                element.classList.remove('open');
+            });
+
+            allMarkers.forEach(({ marker }) => {
+                const popup = marker.getPopup?.();
+                if (popup && popup !== exceptPopup && popup.isOpen()) popup.remove();
+            });
+        }
+
+        function openModal(id) {
+            closeAllOverlays();
+            document.getElementById(id)?.classList.add('open');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id)?.classList.remove('open');
+        }
+
+        function closeSheet(id) {
+            document.getElementById(id)?.classList.remove('open');
+        }
+    </script>
+</body>
+</html>

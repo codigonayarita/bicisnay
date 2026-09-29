@@ -1,0 +1,32 @@
+# Dependencias de Node (se reinstalan con npm install)
+node_modules/
+
+# Claves de firma y certificados privados
+*.keystore
+*.jks
+Guigo765
+
+# Archivos de configuración de editores y sistemas operativos
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Android (archivos generados y caché)
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/local.properties
+
+# iOS (para cuando lo crees en Mac)
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
